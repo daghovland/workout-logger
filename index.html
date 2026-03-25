@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Dag Lifts" />
+  <title>Dag Lifts</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --surface: #141414;
+      --surface2: #1e1e1e;
+      --border: #2a2a2a;
+      --accent-gym: #c8f542;
+      --accent-street: #ff6b2b;
+      --text: #f0f0f0;
+      --muted: #666;
+      --danger: #ff4444;
+      --safe: safe-area-inset;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+
+    /* ── Header ── */
+    #header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(10,10,10,0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: env(safe-area-inset-top, 12px) 16px 12px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    #header h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 28px;
+      letter-spacing: 2px;
+      line-height: 1;
+    }
+
+    #header h1 span { color: var(--accent); }
+
+    #date-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    /* ── Mode Toggle ── */
+    #mode-toggle {
+      display: flex;
+      background: var(--surface);
+      border-radius: 100px;
+      padding: 3px;
+      gap: 2px;
+      border: 1px solid var(--border);
+      margin: 16px 16px 0;
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 10px 0;
+      border: none;
+      border-radius: 100px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: transparent;
+      color: var(--muted);
+      letter-spacing: 0.3px;
+    }
+
+    .mode-btn.active-gym {
+      background: var(--accent-gym);
+      color: #0a0a0a;
+    }
+    .mode-btn.active-street {
+      background: var(--accent-street);
+      color: #0a0a0a;
+    }
+
+    /* ── Session strip ── */
+    #session-info {
+      padding: 12px 16px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    #session-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    #finish-btn {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 6px 16px;
+      border-radius: 100px;
+      border: none;
+      cursor: pointer;
+      background: var(--accent);
+      color: #0a0a0a;
+      display: none;
+    }
+
+    #finish-btn.visible { display: block; }
+
+    /* ── Exercise Cards ── */
+    #exercises {
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .exercise-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+
+    .exercise-card.has-log { border-color: var(--accent); }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px 10px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .ex-name {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 22px;
+      letter-spacing: 1px;
+      line-height: 1;
+    }
+
+    .last-badge {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      text-align: right;
+      line-height: 1.5;
+    }
+
+    .last-badge strong {
+      color: var(--text);
+      font-size: 12px;
+    }
+
+    /* ── Set logger ── */
+    .set-logger {
+      padding: 0 16px 14px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .set-logger.open { display: flex; }
+
+    .set-row {
+      display: grid;
+      grid-template-columns: 24px 1fr 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .set-num {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .set-input {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 15px;
+      font-weight: 500;
+      text-align: center;
+      width: 100%;
+      -webkit-appearance: none;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .set-input:focus { border-color: var(--accent); }
+
+    .set-input::placeholder { color: var(--muted); font-size: 12px; }
+
+    .unit-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      position: absolute;
+      bottom: 4px; right: 6px;
+    }
+
+    .input-wrap { position: relative; }
+
+    .check-btn {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-size: 16px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+
+    .check-btn.done {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #0a0a0a;
+    }
+
+    .add-set-btn {
+      background: transparent;
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      padding: 10px;
+      cursor: pointer;
+      margin-top: 2px;
+      transition: all 0.15s;
+    }
+
+    .add-set-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Notes & AI section ── */
+    #bottom-area {
+      padding: 4px 16px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    #ai-btn {
+      width: 100%;
+      padding: 16px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    #ai-btn:hover { border-color: var(--accent); }
+    #ai-btn .icon { font-size: 18px; }
+
+    /* ── AI Panel ── */
+    #ai-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      display: none;
+    }
+
+    #ai-panel.open { display: block; }
+
+    #ai-panel-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 18px;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    #close-ai {
+      background: none; border: none; color: var(--muted);
+      font-size: 20px; cursor: pointer; line-height: 1;
+    }
+
+    #ai-messages {
+      padding: 14px 16px;
+      max-height: 300px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .ai-msg {
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text);
+    }
+
+    .ai-msg.thinking { color: var(--muted); font-style: italic; }
+
+    #ai-input-row {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    #ai-input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      outline: none;
+    }
+
+    #ai-input:focus { border-color: var(--accent); }
+
+    #ai-send {
+      background: var(--accent);
+      border: none;
+      border-radius: 10px;
+      padding: 10px 16px;
+      color: #0a0a0a;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    /* ── History ── */
+    #history-section {
+      padding: 0 16px 32px;
+    }
+
+    #history-toggle {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      padding: 8px 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #history-list {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    #history-list.open { display: flex; }
+
+    .history-entry {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+
+    .history-date {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .history-mode-tag {
+      display: inline-block;
+      font-size: 10px;
+      font-family: 'DM Mono', monospace;
+      padding: 2px 8px;
+      border-radius: 100px;
+      margin-left: 6px;
+    }
+
+    .tag-gym { background: rgba(200,245,66,0.15); color: var(--accent-gym); }
+    .tag-street { background: rgba(255,107,43,0.15); color: var(--accent-street); }
+
+    .history-exercises {
+      font-size: 12px;
+      color: var(--text);
+      line-height: 1.8;
+    }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 10px 20px;
+      font-size: 13px;
+      transition: transform 0.3s ease;
+      z-index: 999;
+      white-space: nowrap;
+    }
+
+    #toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── Rehab badge ── */
+    .rehab-tag {
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 1px;
+      padding: 2px 7px;
+      border-radius: 100px;
+      background: rgba(255,255,255,0.08);
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    /* accent mode */
+    body.mode-gym { --accent: var(--accent-gym); }
+    body.mode-street { --accent: var(--accent-street); }
+  </style>
+</head>
+<body class="mode-gym">
+
+<div id="header">
+  <div>
+    <h1>DAG <span>LIFTS</span></h1>
+    <div id="date-label">Loading…</div>
+  </div>
+</div>
+
+<div id="mode-toggle">
+  <button class="mode-btn active-gym" onclick="setMode('gym')" id="btn-gym">🏋️ Gym</button>
+  <button class="mode-btn" onclick="setMode('street')" id="btn-street">🏗️ Street Barbell</button>
+</div>
+
+<div id="session-info">
+  <div id="session-label">Today's session</div>
+  <button id="finish-btn" onclick="finishSession()">Save session ✓</button>
+</div>
+
+<div id="exercises"></div>
+
+<div id="bottom-area">
+  <button id="ai-btn" onclick="toggleAI()">
+    <span class="icon">✦</span> Ask Claude about this session
+  </button>
+
+  <div id="ai-panel">
+    <div id="ai-panel-header">
+      CLAUDE COACH
+      <button id="close-ai" onclick="toggleAI()">×</button>
+    </div>
+    <div id="ai-messages"></div>
+    <div id="ai-input-row">
+      <input id="ai-input" placeholder="Ask about your session…" onkeydown="if(event.key==='Enter') sendToAI()" />
+      <button id="ai-send" onclick="sendToAI()">Send</button>
+    </div>
+  </div>
+</div>
+
+<div id="history-section">
+  <button id="history-toggle" onclick="toggleHistory()">▸ Recent sessions</button>
+  <div id="history-list"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════
+// DATA DEFINITIONS
+// ══════════════════════════════════════════════════
+
+const GYM_EXERCISES = [
+  // Rehab block
+  { id: 'rdl_sling', name: 'Single Leg RDL (Sling)', unit: 'kg', defaultSets: 2, defaultReps: 6, rehab: true,
+    hint: 'Foot elevated in sling' },
+  { id: 'leg_ext_hs', name: 'Leg Extension (Hammer)', unit: 'kg', defaultSets: 2, defaultReps: 6, rehab: true,
+    hint: 'Hammer Strength machine' },
+  { id: 'leg_ext_tg', name: 'Leg Extension (Technogym)', unit: 'kg', defaultSets: 2, defaultReps: 7, rehab: true,
+    hint: 'Technogym machine' },
+  { id: 'stepup_bb', name: 'Step-ups (BB)', unit: 'kg', defaultSets: 2, defaultReps: 7, rehab: true,
+    hint: '50 cm box' },
+  { id: 'side_plank_sling', name: 'Side Plank (Sling)', unit: 'reps', defaultSets: 2, defaultReps: 17, rehab: true,
+    hint: 'Reps each side' },
+  // Strength block
+  { id: 'deadlift_gym', name: 'Deadlift', unit: 'kg', defaultSets: 2, defaultReps: 4 },
+  { id: 'ohp_gym', name: 'OHP', unit: 'kg', defaultSets: 2, defaultReps: 6 },
+  { id: 'pullup_gym', name: 'Pull-ups', unit: 'BW', defaultSets: 2, defaultReps: 5 },
+  { id: 'bbrow_gym', name: 'Barbell Row', unit: 'kg', defaultSets: 2, defaultReps: 5 },
+  { id: 'db_bench_gym', name: 'DB Bench', unit: 'kg/arm', defaultSets: 2, defaultReps: 6 },
+];
+
+const STREET_EXERCISES = [
+  { id: 'squat_machine', name: 'Squat Machine', unit: 'kg', defaultSets: 3, defaultReps: 10,
+    hint: 'Asymmetric: R/L kg — feet high' },
+  { id: 'bench_street', name: 'Bench', unit: 'kg', defaultSets: 3, defaultReps: 7 },
+  { id: 'deadlift_street', name: 'Deadlift', unit: 'kg', defaultSets: 2, defaultReps: 3 },
+  { id: 'ohp_street', name: 'OHP', unit: 'kg', defaultSets: 3, defaultReps: 5 },
+  { id: 'pullup_street', name: 'Pull-ups', unit: 'BW', defaultSets: 3, defaultReps: 4 },
+  { id: 'row_street', name: 'Row', unit: 'kg/side', defaultSets: 3, defaultReps: 10 },
+];
+
+// Seed defaults from memory
+const DEFAULTS = {
+  rdl_sling: { weight: '32', reps: '6' },
+  leg_ext_hs: { weight: '63.5', reps: '6' },
+  leg_ext_tg: { weight: '61', reps: '7' },
+  stepup_bb: { weight: '40', reps: '7' },
+  side_plank_sling: { weight: '', reps: '17' },
+  deadlift_gym: { weight: '140', reps: '4' },
+  ohp_gym: { weight: '50', reps: '5' },
+  pullup_gym: { weight: '', reps: '5' },
+  bbrow_gym: { weight: '90', reps: '5' },
+  db_bench_gym: { weight: '37.5', reps: '6' },
+  squat_machine: { weight: '40/50', reps: '10' },
+  bench_street: { weight: '80', reps: '7' },
+  deadlift_street: { weight: '220', reps: '3' },
+  ohp_street: { weight: '45', reps: '5' },
+  pullup_street: { weight: '', reps: '4' },
+  row_street: { weight: '20', reps: '10' },
+};
+
+// ══════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════
+
+let currentMode = 'gym';
+let currentSession = {}; // { exId: [ {weight, reps, done} ] }
+let aiOpen = false;
+let aiHistory = [];
+
+// ══════════════════════════════════════════════════
+// DB (IndexedDB)
+// ══════════════════════════════════════════════════
+
+const DB_NAME = 'daglifts';
+const DB_VERSION = 1;
+let db;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('sessions')) {
+        d.createObjectStore('sessions', { keyPath: 'id', autoIncrement: true });
+      }
+    };
+    req.onsuccess = e => { db = e.target.result; resolve(db); };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function saveSession(session) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('sessions', 'readwrite');
+    tx.objectStore('sessions').add(session);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+function getSessions(count = 20) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('sessions', 'readonly');
+    const store = tx.objectStore('sessions');
+    const all = [];
+    store.openCursor(null, 'prev').onsuccess = e => {
+      const cursor = e.target.result;
+      if (cursor && all.length < count) {
+        all.push(cursor.value);
+        cursor.continue();
+      } else {
+        resolve(all);
+      }
+    };
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// ══════════════════════════════════════════════════
+// UI
+// ══════════════════════════════════════════════════
+
+function setMode(mode) {
+  currentMode = mode;
+  currentSession = {};
+  document.body.className = 'mode-' + mode;
+  document.getElementById('btn-gym').className = 'mode-btn' + (mode === 'gym' ? ' active-gym' : '');
+  document.getElementById('btn-street').className = 'mode-btn' + (mode === 'street' ? ' active-street' : '');
+  document.getElementById('finish-btn').classList.remove('visible');
+  renderExercises();
+}
+
+async function getLastSession(mode, exId) {
+  const sessions = await getSessions(30);
+  for (const s of sessions) {
+    if (s.mode === mode && s.exercises && s.exercises[exId]) {
+      return s.exercises[exId];
+    }
+  }
+  return null;
+}
+
+async function renderExercises() {
+  const container = document.getElementById('exercises');
+  container.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">Loading…</div>';
+
+  const exercises = currentMode === 'gym' ? GYM_EXERCISES : STREET_EXERCISES;
+  const sessions = await getSessions(30);
+
+  // Find last session for this mode
+  const lastByExId = {};
+  for (const s of sessions) {
+    if (s.mode !== currentMode) continue;
+    for (const [exId, sets] of Object.entries(s.exercises || {})) {
+      if (!lastByExId[exId]) lastByExId[exId] = sets;
+    }
+  }
+
+  container.innerHTML = '';
+
+  let rehabDone = false;
+  for (const ex of exercises) {
+    if (ex.rehab && !rehabDone) {
+      const label = document.createElement('div');
+      label.style.cssText = 'font-family:DM Mono,monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;padding:8px 2px 4px;';
+      label.textContent = '— Rehab Block —';
+      container.appendChild(label);
+      rehabDone = true;
+    }
+    if (!ex.rehab && rehabDone) {
+      rehabDone = false;
+      const label = document.createElement('div');
+      label.style.cssText = 'font-family:DM Mono,monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;padding:12px 2px 4px;';
+      label.textContent = '— Strength Block —';
+      container.appendChild(label);
+    }
+
+    const last = lastByExId[ex.id];
+    const def = DEFAULTS[ex.id] || {};
+
+    const card = document.createElement('div');
+    card.className = 'exercise-card';
+    card.id = 'card-' + ex.id;
+
+    // Badge showing last session
+    let lastText = '';
+    if (last && last.length) {
+      const bestSet = last.find(s => s.done) || last[0];
+      lastText = bestSet ? `<strong>${bestSet.weight || '—'}</strong> ${ex.unit} × <strong>${bestSet.reps}</strong>` : '';
+    } else if (def.weight !== undefined) {
+      lastText = `<strong>${def.weight || 'BW'}</strong> ${ex.weight ? ex.unit : ''} × <strong>${def.reps}</strong>`;
+    }
+
+    card.innerHTML = `
+      <div class="card-header" onclick="toggleCard('${ex.id}')">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="ex-name">${ex.name}</div>
+            ${ex.rehab ? '<span class="rehab-tag">Rehab</span>' : ''}
+          </div>
+          ${ex.hint ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${ex.hint}</div>` : ''}
+        </div>
+        <div class="last-badge">
+          <div style="font-size:10px;margin-bottom:2px">LAST TIME</div>
+          ${lastText || '<span style="color:var(--muted)">—</span>'}
+        </div>
+      </div>
+      <div class="set-logger" id="logger-${ex.id}">
+        <div id="sets-${ex.id}"></div>
+        <button class="add-set-btn" onclick="addSet('${ex.id}', '${ex.unit}')">+ Add set</button>
+      </div>
+    `;
+
+    container.appendChild(card);
+
+    // Pre-populate sets from last session or defaults
+    const initSets = last && last.length ? last : Array.from({length: ex.defaultSets}, () => ({
+      weight: def.weight || '',
+      reps: def.reps || ex.defaultReps,
+      done: false
+    }));
+    currentSession[ex.id] = initSets.map(s => ({...s, done: false}));
+    renderSets(ex.id, ex.unit);
+  }
+}
+
+function renderSets(exId, unit) {
+  const container = document.getElementById('sets-' + exId);
+  if (!container) return;
+  const sets = currentSession[exId] || [];
+  container.innerHTML = '';
+
+  sets.forEach((set, i) => {
+    const row = document.createElement('div');
+    row.className = 'set-row';
+    const isWeightless = unit === 'BW';
+
+    row.innerHTML = `
+      <span class="set-num">${i+1}</span>
+      ${!isWeightless ? `
+        <div class="input-wrap">
+          <input class="set-input" type="text" inputmode="decimal" placeholder="kg"
+            value="${set.weight || ''}"
+            onchange="updateSet('${exId}', ${i}, 'weight', this.value)"
+            oninput="updateSet('${exId}', ${i}, 'weight', this.value)" />
+        </div>` : '<div style="color:var(--muted);font-size:12px;text-align:center">BW</div>'}
+      <div class="input-wrap">
+        <input class="set-input" type="text" inputmode="numeric" placeholder="reps"
+          value="${set.reps || ''}"
+          onchange="updateSet('${exId}', ${i}, 'reps', this.value)"
+          oninput="updateSet('${exId}', ${i}, 'reps', this.value)" />
+      </div>
+      <button class="check-btn ${set.done ? 'done' : ''}" onclick="toggleSetDone('${exId}', ${i})">✓</button>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function toggleCard(exId) {
+  const logger = document.getElementById('logger-' + exId);
+  logger.classList.toggle('open');
+}
+
+function updateSet(exId, index, field, value) {
+  if (!currentSession[exId]) return;
+  currentSession[exId][index][field] = value;
+  checkFinishVisible();
+}
+
+function toggleSetDone(exId, index) {
+  if (!currentSession[exId]) return;
+  currentSession[exId][index].done = !currentSession[exId][index].done;
+  const card = document.getElementById('card-' + exId);
+  const sets = currentSession[exId];
+  const anyDone = sets.some(s => s.done);
+  card.classList.toggle('has-log', anyDone);
+  renderSets(exId, getUnit(exId));
+  checkFinishVisible();
+}
+
+function getUnit(exId) {
+  const all = [...GYM_EXERCISES, ...STREET_EXERCISES];
+  return (all.find(e => e.id === exId) || {}).unit || 'kg';
+}
+
+function addSet(exId, unit) {
+  if (!currentSession[exId]) currentSession[exId] = [];
+  const prev = currentSession[exId].slice(-1)[0] || {};
+  currentSession[exId].push({ weight: prev.weight || '', reps: prev.reps || '', done: false });
+  renderSets(exId, unit);
+}
+
+function checkFinishVisible() {
+  const anyDone = Object.values(currentSession).some(sets => sets.some(s => s.done));
+  document.getElementById('finish-btn').classList.toggle('visible', anyDone);
+}
+
+// ══════════════════════════════════════════════════
+// SAVE SESSION
+// ══════════════════════════════════════════════════
+
+async function finishSession() {
+  const now = new Date();
+  const session = {
+    date: now.toISOString(),
+    mode: currentMode,
+    exercises: {}
+  };
+
+  for (const [exId, sets] of Object.entries(currentSession)) {
+    if (sets.some(s => s.done)) {
+      session.exercises[exId] = sets;
+    }
+  }
+
+  await saveSession(session);
+  showToast('Session saved! 💪');
+  document.getElementById('finish-btn').classList.remove('visible');
+
+  // Reset done states
+  for (const sets of Object.values(currentSession)) {
+    sets.forEach(s => s.done = false);
+  }
+  document.querySelectorAll('.exercise-card').forEach(c => c.classList.remove('has-log'));
+  renderExercises();
+  renderHistory();
+}
+
+// ══════════════════════════════════════════════════
+// HISTORY
+// ══════════════════════════════════════════════════
+
+async function renderHistory() {
+  const sessions = await getSessions(10);
+  const list = document.getElementById('history-list');
+  list.innerHTML = '';
+
+  if (!sessions.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:13px">No sessions yet.</div>';
+    return;
+  }
+
+  const all = [...GYM_EXERCISES, ...STREET_EXERCISES];
+  const nameMap = Object.fromEntries(all.map(e => [e.id, e.name]));
+
+  for (const s of sessions) {
+    const d = new Date(s.date);
+    const dateStr = d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+    const timeStr = d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+    const modeTag = s.mode === 'gym'
+      ? '<span class="history-mode-tag tag-gym">GYM</span>'
+      : '<span class="history-mode-tag tag-street">STREET</span>';
+
+    const exLines = Object.entries(s.exercises || {}).map(([exId, sets]) => {
+      const done = sets.filter(st => st.done);
+      if (!done.length) return null;
+      const best = done[0];
+      const unit = getUnit(exId);
+      const weight = unit === 'BW' ? 'BW' : (best.weight || '?') + ' ' + unit;
+      return `${nameMap[exId] || exId}: ${weight} × ${best.reps} (${done.length} sets)`;
+    }).filter(Boolean);
+
+    const entry = document.createElement('div');
+    entry.className = 'history-entry';
+    entry.innerHTML = `
+      <div class="history-date">${dateStr} ${timeStr} ${modeTag}</div>
+      <div class="history-exercises">${exLines.join('<br>') || '—'}</div>
+    `;
+    list.appendChild(entry);
+  }
+}
+
+function toggleHistory() {
+  const list = document.getElementById('history-list');
+  const btn = document.getElementById('history-toggle');
+  list.classList.toggle('open');
+  btn.textContent = list.classList.contains('open') ? '▾ Recent sessions' : '▸ Recent sessions';
+  if (list.classList.contains('open')) renderHistory();
+}
+
+// ══════════════════════════════════════════════════
+// AI / CLAUDE INTEGRATION
+// ══════════════════════════════════════════════════
+
+function toggleAI() {
+  aiOpen = !aiOpen;
+  document.getElementById('ai-panel').classList.toggle('open', aiOpen);
+  if (aiOpen && aiHistory.length === 0) {
+    autoGreet();
+  }
+}
+
+function buildSessionSummary() {
+  const exercises = currentMode === 'gym' ? GYM_EXERCISES : STREET_EXERCISES;
+  const nameMap = Object.fromEntries(exercises.map(e => [e.id, { name: e.name, unit: e.unit, rehab: e.rehab }]));
+  const lines = [];
+  for (const [exId, sets] of Object.entries(currentSession)) {
+    const ex = nameMap[exId];
+    if (!ex) continue;
+    const logged = sets.filter(s => s.done || s.weight || s.reps);
+    if (!logged.length) continue;
+    const setStr = sets.map((s, i) => `Set ${i+1}: ${s.weight || 'BW'} ${ex.unit} × ${s.reps || '?'}${s.done ? ' ✓' : ''}`).join(', ');
+    lines.push(`${ex.name}${ex.rehab ? ' [rehab]' : ''}: ${setStr}`);
+  }
+  return lines.join('\n') || 'No exercises logged yet.';
+}
+
+async function autoGreet() {
+  const summary = buildSessionSummary();
+  const systemPrompt = `You are a concise strength coach assistant for Dag, a Norwegian lifter. 
+Dag had a right patellar tendon rupture 20 months ago with ongoing tendinopathy. He's in active rehab (3x/week protocol) alongside strength training.
+He trains at a gym and also at an outdoor "Street Barbell" setup. Current mode: ${currentMode.toUpperCase()}.
+Be brief, direct, and encouraging. Focus on practical coaching. Max 3 sentences per reply unless asked for more.
+Current session data:
+${summary}
+
+His known working loads: Gym: Deadlift 140kg×4, OHP 50kg×5-6, Pull-ups 6+4, BB Row 90kg×5, DB Bench 37.5kg×6. Rehab: RDL sling 32kg×6-7, Step-ups 40kg×7-8, Leg ext 63.5-61kg×6-7. Street: Bench 80kg×7-8, Deadlift 220kg, OHP 45kg.`;
+
+  const userMsg = `Briefly assess today's ${currentMode} session and give me one key coaching cue or observation.`;
+
+  appendAIMsg('...', 'thinking');
+  try {
+    const reply = await callClaude(systemPrompt, userMsg);
+    removeThinking();
+    appendAIMsg(reply, 'ai');
+    aiHistory.push({ role: 'user', content: userMsg });
+    aiHistory.push({ role: 'assistant', content: reply });
+  } catch (e) {
+    removeThinking();
+    appendAIMsg('Could not connect to Claude. Make sure you have an internet connection.', 'ai');
+  }
+}
+
+async function sendToAI() {
+  const input = document.getElementById('ai-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+
+  appendAIMsg(msg, 'user');
+
+  const summary = buildSessionSummary();
+  const systemPrompt = `You are a concise strength coach assistant for Dag. 
+He had a right patellar tendon rupture 20 months ago. Currently in strength + rehab training.
+Current ${currentMode.toUpperCase()} session:\n${summary}
+Be brief, practical, max 3 sentences unless more detail is requested.`;
+
+  aiHistory.push({ role: 'user', content: msg });
+
+  appendAIMsg('...', 'thinking');
+  try {
+    const reply = await callClaude(systemPrompt, null, aiHistory);
+    removeThinking();
+    appendAIMsg(reply, 'ai');
+    aiHistory.push({ role: 'assistant', content: reply });
+  } catch(e) {
+    removeThinking();
+    appendAIMsg('Error reaching Claude.', 'ai');
+  }
+}
+
+async function callClaude(system, firstMsg, history) {
+  const messages = history ? [...history] : [{ role: 'user', content: firstMsg }];
+
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 300,
+      system,
+      messages
+    })
+  });
+
+  if (!resp.ok) throw new Error('API error ' + resp.status);
+  const data = await resp.json();
+  return data.content.map(b => b.text || '').join('');
+}
+
+function appendAIMsg(text, type) {
+  const msgs = document.getElementById('ai-messages');
+  const div = document.createElement('div');
+  div.className = 'ai-msg ' + (type === 'thinking' ? 'thinking' : '');
+  div.id = type === 'thinking' ? 'thinking-msg' : '';
+
+  if (type === 'user') {
+    div.style.cssText = 'background:var(--surface2);border-radius:10px;padding:8px 12px;font-size:13px;';
+  }
+  div.textContent = text;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function removeThinking() {
+  const el = document.getElementById('thinking-msg');
+  if (el) el.remove();
+}
+
+// ══════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ══════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════
+
+async function init() {
+  await openDB();
+
+  // Date label
+  const now = new Date();
+  document.getElementById('date-label').textContent =
+    now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
+
+  await renderExercises();
+}
+
+init();
+
+// Register service worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
