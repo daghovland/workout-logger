@@ -1183,14 +1183,82 @@ async function syncSessionToSupabase(session) {
 
 async function syncPendingSessions() {
   if (!sbClient || !authUser) return;
-  const all = await dbGetAll();
-  const pending = all.filter(s => !s.synced);
-  if (!pending.length) return;
 
   const dot = document.getElementById('sync-dot');
   if (dot) dot.className = 'sync-dot syncing';
+
+  // Push unsynced local sessions up
+  const all = await dbGetAll();
+  const pending = all.filter(s => !s.synced);
   for (const s of pending) await syncSessionToSupabase(s);
+
+  // Pull sessions from other devices down
+  await pullSessionsFromSupabase();
+
   if (dot && authUser) dot.className = 'sync-dot ok';
+}
+
+async function pullSessionsFromSupabase() {
+  if (!sbClient || !authUser) return;
+  try {
+    const { data: remoteSessions, error: sErr } = await sbClient
+      .from('sessions')
+      .select('id, local_id, type, date, duration_ms')
+      .eq('user_id', authUser.id)
+      .order('date', { ascending: false });
+    if (sErr) throw sErr;
+    if (!remoteSessions?.length) return;
+
+    // Find which remote sessions are missing from local IndexedDB
+    const localAll = await dbGetAll();
+    const localIds = new Set(localAll.map(s => s.id));
+    const missing = remoteSessions.filter(s => !localIds.has(s.local_id));
+    if (!missing.length) return;
+
+    // Fetch sets for each missing session and write to IndexedDB
+    for (const rs of missing) {
+      const { data: sets, error: setErr } = await sbClient
+        .from('sets')
+        .select('exercise_id, set_index, weight, weight_l, weight_r, reps, notes, logged_at')
+        .eq('session_id', rs.id)
+        .order('set_index', { ascending: true });
+      if (setErr) continue;
+
+      const exercises = {};
+      for (const set of (sets || [])) {
+        if (!exercises[set.exercise_id]) exercises[set.exercise_id] = { sets: [] };
+        const s = {
+          reps: set.reps,
+          timestamp: set.logged_at ? new Date(set.logged_at).getTime() : rs.local_id,
+        };
+        if (set.weight !== null && set.weight !== undefined) s.weight = set.weight;
+        if (set.weight_l !== null && set.weight_l !== undefined) {
+          s.weightL = set.weight_l;
+          s.weightR = set.weight_r;
+        }
+        if (set.notes) s.notes = set.notes;
+        exercises[set.exercise_id].sets[set.set_index] = s;
+      }
+      for (const exId of Object.keys(exercises)) {
+        exercises[exId].sets = exercises[exId].sets.filter(Boolean);
+        if (exercises[exId].sets.length === 0) delete exercises[exId];
+      }
+
+      await dbSave({
+        id: rs.local_id,
+        date: rs.date,
+        type: rs.type,
+        durationMs: rs.duration_ms ?? 0,
+        exercises,
+        synced: true,
+      });
+    }
+
+    S.sessions = await dbGetAll();
+    await refreshHome();
+  } catch (e) {
+    console.error('Pull from Supabase failed:', e);
+  }
 }
 
 // ── AI SUGGESTIONS ────────────────────────────────────────────────────────
