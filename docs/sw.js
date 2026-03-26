@@ -1,4 +1,4 @@
-const CACHE = 'daglifts-v2';
+const CACHE = 'daglifts-v3';
 const ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -16,9 +16,12 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Pass through non-GET and external API requests
+  // Pass through non-GET, Supabase, and other external requests
   if (e.request.method !== 'GET') return;
-  if (!e.request.url.startsWith(self.location.origin)) return;
+  const url = e.request.url;
+  if (!url.startsWith(self.location.origin)) return;
+  // Also pass through anything that looks like an API call on the same origin
+  if (url.includes('/functions/v1/') || url.includes('/rest/v1/') || url.includes('/auth/v1/')) return;
 
   e.respondWith(
     caches.match(e.request).then(cached => {
