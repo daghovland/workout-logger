@@ -302,6 +302,14 @@
     .hex-name { font-size: 12px; color: var(--muted); margin-bottom: 4px; font-weight: 500; }
     .hex-sets { display: flex; flex-wrap: wrap; gap: 4px; }
     .empty { text-align: center; padding: 48px 24px; color: var(--muted); font-size: 15px; line-height: 1.5; }
+    .hist-acts { display: flex; gap: 8px; padding: 10px 0 2px; border-top: 1px solid var(--border); margin-top: 10px; }
+    .hist-act {
+      flex: 1; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-size: 13px; font-weight: 600;
+      padding: 9px; cursor: pointer; font-family: inherit; text-align: center;
+    }
+    .hist-act:active { opacity: 0.7; }
+    .hist-act.danger { color: var(--danger); border-color: rgba(255,71,87,0.4); background: rgba(255,71,87,0.07); }
 
     /* ── AUTH & SYNC ─────────────────────────── */
     .auth-area { margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; }
@@ -376,7 +384,7 @@
   <div class="session-body" id="session-body"></div>
   <div class="finish-bar">
     <span class="timer" id="finish-timer">0:00</span>
-    <button class="finish-btn" onclick="finishSession()">Finish Workout ✓</button>
+    <button class="finish-btn" id="finish-btn" onclick="finishSession()">Finish Workout ✓</button>
   </div>
 </div>
 
@@ -507,6 +515,15 @@ function dbSave(session) {
   });
 }
 
+function dbDelete(id) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).delete(id);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  });
+}
+
 function dbGetAll() {
   return new Promise((res, rej) => {
     const tx = db.transaction(STORE, 'readonly');
@@ -529,6 +546,7 @@ let S = {
   timerHandle: null,
   sessions: [],
   suggestions: {},      // { [exId]: 'loading' | { weight, reps, note } | null }
+  editMode: false,      // true when editing a saved session
 };
 
 // ── INIT ──────────────────────────────────────────────────────────────────
@@ -591,6 +609,9 @@ async function startSession(type) {
   }
 
   document.getElementById('session-title').textContent = type === 'gym' ? 'Gym Session' : 'Outdoor Session';
+  document.getElementById('session-timer').textContent = '0:00';
+  document.getElementById('finish-timer').textContent = '0:00';
+  document.getElementById('finish-btn').textContent = 'Finish Workout ✓';
   document.body.className = type;
   renderSession();
   showScreen('session');
@@ -848,9 +869,25 @@ function getSets(exId) {
 
 // ── FINISH SESSION ────────────────────────────────────────────────────────
 
-function finishSession() {
+async function finishSession() {
   saveInputs(S.openEx);
   const totalSets = Object.values(S.session.exercises).reduce((n, e) => n + e.sets.length, 0);
+
+  if (S.editMode) {
+    if (totalSets === 0 && !confirm('No sets remain. Save empty session?')) return;
+    try {
+      await dbSave(S.session);
+      const idx = S.sessions.findIndex(s => s.id === S.session.id);
+      if (idx !== -1) S.sessions[idx] = S.session;
+      syncSessionToSupabase(S.session);
+      showToast('Session updated!');
+    } catch { showToast('Save failed'); }
+    S.session = null; S.type = null; S.editMode = false;
+    document.getElementById('finish-btn').textContent = 'Finish Workout ✓';
+    await showHistory();
+    return;
+  }
+
   if (totalSets === 0) {
     if (!confirm('No sets logged. Discard this session?')) return;
     cancelSession();
@@ -863,6 +900,13 @@ function finishSession() {
 }
 
 function cancelSession() {
+  if (S.editMode) {
+    if (!confirm('Discard changes?')) return;
+    S.session = null; S.type = null; S.editMode = false;
+    document.getElementById('finish-btn').textContent = 'Finish Workout ✓';
+    showHistory();
+    return;
+  }
   const hasSets = Object.values(S.session?.exercises || {}).some(e => e.sets.length > 0);
   if (hasSets && !confirm('Cancel session? All logged sets will be lost.')) return;
   stopTimer();
@@ -992,6 +1036,10 @@ function buildHistItem(session, idx) {
           <div class="hex-sets">${sets.map((s,i) => `<div class="chip"><span class="chip-n">${i+1}</span><span>${fmtSetShort(ex,s)}</span></div>`).join('')}</div>
         </div>`;
       }).join('')}
+      <div class="hist-acts">
+        <button class="hist-act" onclick="startEditSession(${session.id})">✎ Edit</button>
+        <button class="hist-act danger" onclick="deleteSession(${session.id})">Delete</button>
+      </div>
     </div>
   `;
   return el;
@@ -1075,6 +1123,61 @@ function showToast(msg) {
   el.classList.add('show');
   clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// ── EDIT & DELETE SESSION ─────────────────────────────────────────────────
+
+function startEditSession(localId) {
+  const session = S.sessions.find(s => s.id === localId);
+  if (!session) return;
+
+  S.type = session.type;
+  S.session = JSON.parse(JSON.stringify(session)); // deep copy so edits don't mutate history
+  S.sessionStart = null;
+  S.editMode = true;
+  S.openEx = null;
+  S.checklistState = {};
+  S.suggestions = {};
+  S.lastVals = {};
+  S.curInputs = {};
+
+  // Pre-fill inputs from the session's last set per exercise
+  for (const ex of allExercises(session.type)) {
+    const sets = S.session.exercises?.[ex.id]?.sets || [];
+    const last = sets.length > 0 ? sets[sets.length - 1] : null;
+    if (last) S.lastVals[ex.id] = last;
+    S.curInputs[ex.id] = last
+      ? { ...last, notes: '' }
+      : defaultInputs(ex);
+  }
+
+  document.getElementById('session-title').textContent =
+    session.type === 'gym' ? 'Edit Gym Session' : 'Edit Outdoor Session';
+  document.getElementById('session-timer').textContent = fmtDate(session.date, true);
+  document.getElementById('finish-timer').textContent = '';
+  document.getElementById('finish-btn').textContent = 'Save Changes ✓';
+  document.body.className = session.type;
+  renderSession();
+  showScreen('session');
+  // No timer in edit mode
+}
+
+async function deleteSession(localId) {
+  if (!confirm('Delete this session? This cannot be undone.')) return;
+  try {
+    await dbDelete(localId);
+    if (sbClient && authUser) {
+      // Sets are deleted via CASCADE in Postgres
+      await sbClient.from('sessions').delete()
+        .eq('user_id', authUser.id).eq('local_id', localId);
+    }
+    S.sessions = S.sessions.filter(s => s.id !== localId);
+    await refreshHome();
+    showToast('Session deleted');
+    await showHistory();
+  } catch (e) {
+    showToast('Delete failed');
+  }
 }
 
 // ── AUTH ──────────────────────────────────────────────────────────────────
