@@ -1494,7 +1494,7 @@ async function fetchSessionBrief(type) {
     if (!token) { el.style.display = 'none'; return; }
     const resp = await fetch(`${SUPABASE_URL}/functions/v1/session-brief`, {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { 'Authorization': `Bearer ${token}`, 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({ type }),
     });
     if (!resp.ok) throw new Error(`${resp.status}`);
@@ -1522,6 +1522,7 @@ async function fetchSuggestions(type) {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
+            'apikey': SUPABASE_ANON_KEY,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ exercise_id: ex.id, exercise_name: ex.name }),
