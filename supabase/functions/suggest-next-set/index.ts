@@ -1,14 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const SYSTEM_PROMPT = `You are a strength coach for Dag, a Norwegian powerlifter and barbell athlete in his 40s.
-He is recovering from a left patellar tendon rupture (surgery approximately 18 months ago).
-He trains at a gym in Oslo (main lifts: deadlift, OHP, pull-ups, BB row, DB bench; rehab block: single-leg RDL sling, leg extensions, step-ups, side plank) and an outdoor barbell park in Oslo (squat machine, bench, deadlift, OHP, pull-ups, row).
+const BASE_SYSTEM_PROMPT = `You are a personal strength coach.
 
 Progression principles:
 - Progressive overload: suggest small weight increases (2.5 kg for main barbell lifts) when the athlete completed all reps comfortably
-- Rep targets: main powerlifting lifts 3–5 reps, accessory/outdoor 5–8 reps, rehab 8–15 reps
 - If the last session weight looked like a grind (reps at or below the bottom of the rep range), hold the same weight or suggest a slight deload
-- Asymmetric squat machine: the left knee is the limiting factor — be conservative on load, prioritise matching rep quality left and right
 - Bodyweight exercises (pull-ups): weight should be null, suggest a rep target only
 - When there is no history, suggest a conservative starting weight based on typical beginner/intermediate numbers for the exercise
 
@@ -47,6 +43,19 @@ Deno.serve(async (req: Request) => {
     if (!exercise_id || !exercise_name) {
       return jsonResp({ error: 'Missing exercise_id or exercise_name' }, 400)
     }
+
+    // Fetch user profile for personalised coaching context
+    const { data: profile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('display_name, ai_context')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    const systemPrompt = profile?.ai_context
+      ? `${BASE_SYSTEM_PROMPT}\n\nAthlete context: ${profile.ai_context}`
+      : BASE_SYSTEM_PROMPT
+
+    const name = profile?.display_name ?? 'the athlete'
 
     // Fetch the IDs of all sessions belonging to this user
     const { data: userSessions, error: sessErr } = await supabaseAdmin
@@ -98,7 +107,8 @@ Deno.serve(async (req: Request) => {
             })
             .join('\n')
 
-    const userMessage = `Exercise: ${exercise_name}
+    const userMessage = `Athlete: ${name}
+Exercise: ${exercise_name}
 
 Recent sets (newest first):
 ${historyText}
@@ -118,7 +128,7 @@ Suggest the next working set.`
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 200,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
       }),
     })

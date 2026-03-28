@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#0a0a0a">
-  <title>Dag Lifts</title>
+  <title>Workout Logger</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
@@ -340,6 +340,15 @@
     .login-sub { color: var(--muted); font-size: 14px; line-height: 1.6; max-width: 280px; }
     .login-actions { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 300px; }
 
+    .prof-lbl { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; text-align: left; }
+    .prof-hint { font-size: 12px; color: var(--muted); line-height: 1.5; margin: 0 0 8px; text-align: left; }
+    .prof-input {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text); font-size: 15px;
+      padding: 11px 12px; font-family: inherit; resize: vertical; outline: none; box-sizing: border-box;
+    }
+    .prof-input:focus { border-color: var(--accent); }
+
     /* ── TOAST ───────────────────────────────── */
     #toast {
       position: fixed; bottom: calc(var(--safe-b) + 100px);
@@ -358,10 +367,11 @@
 <!-- HOME -->
 <div class="screen active" id="home">
   <div class="home-top">
-    <h1>Dag Lifts</h1>
+    <h1>Workout Log</h1>
     <p id="home-date"></p>
     <div class="auth-area">
       <div id="sync-dot" class="sync-dot" style="display:none"></div>
+      <button id="profile-btn" class="ibtn" onclick="showProfile()" style="display:none" title="Coaching profile">⚙</button>
       <button id="auth-btn" class="ibtn" onclick="handleAuthBtn()" style="display:none" title="Sign in with Google for cloud sync + AI suggestions">↗</button>
     </div>
   </div>
@@ -418,6 +428,26 @@
   <div class="hist-body" id="hist-body"></div>
 </div>
 
+<!-- PROFILE -->
+<div class="screen" id="profile">
+  <div class="hdr">
+    <button class="ibtn" onclick="showScreen('home')">←</button>
+    <h1>Coaching Profile</h1>
+  </div>
+  <div class="login-body" style="gap:16px">
+    <div style="width:100%">
+      <label class="prof-lbl">Your name</label>
+      <input id="prof-name" class="prof-input" type="text" placeholder="e.g. Alex" autocomplete="off">
+    </div>
+    <div style="width:100%">
+      <label class="prof-lbl">Coaching context</label>
+      <p class="prof-hint">Describe your training background, goals, and any injuries or limitations. The AI coach uses this to personalise suggestions.</p>
+      <textarea id="prof-context" class="prof-input" rows="6" placeholder="e.g. Intermediate powerlifter, mid-30s. Recovering from a right shoulder impingement. Main goals are strength on squat, bench and deadlift. Conservative with load progression."></textarea>
+    </div>
+    <button id="prof-save" class="btn-primary" onclick="saveProfile()">Save</button>
+  </div>
+</div>
+
 <!-- LOGIN -->
 <div class="screen" id="login">
   <div class="hdr">
@@ -460,28 +490,27 @@ try {
 const EXERCISES = {
   gym: {
     rehab: [
-      { id: 'rdl_sling',  name: 'Single-leg RDL (sling)',     unit: 'kg',     step: 2,    dw: 32,   dr: 8  },
-      { id: 'leg_ext_hs', name: 'Leg Ext – Hammer Strength',  unit: 'kg',     step: 2.5,  dw: 63.5, dr: 10 },
-      { id: 'leg_ext_tg', name: 'Leg Ext – Technogym',        unit: 'kg',     step: 2.5,  dw: 61,   dr: 10 },
-      { id: 'step_ups',   name: 'Step-ups BB',                unit: 'kg',     step: 5,    dw: 45,   dr: 8  },
-      { id: 'side_plank', name: 'Side Plank (sling)',         unit: null,     step: null, dw: null, dr: 19 },
+      { id: 'rdl_sling',  name: 'Single-leg RDL (sling)',    unit: 'kg',     step: 2   },
+      { id: 'leg_ext_hs', name: 'Leg Ext – Hammer Strength', unit: 'kg',     step: 2.5 },
+      { id: 'leg_ext_tg', name: 'Leg Ext – Technogym',       unit: 'kg',     step: 2.5 },
+      { id: 'step_ups',   name: 'Step-ups BB',               unit: 'kg',     step: 5   },
+      { id: 'side_plank', name: 'Side Plank (sling)',        unit: null,     step: null },
     ],
     main: [
-      { id: 'deadlift', name: 'Deadlift', unit: 'kg',     step: 2.5, dw: 140,  dr: 5 },
-      { id: 'ohp',      name: 'OHP',      unit: 'kg',     step: 2.5, dw: 50,   dr: 5,
-        checklist: ['Band pull-aparts (3×15)', 'Face pulls (3×15)', 'Rotator cuff circles'] },
-      { id: 'pullups',  name: 'Pull-ups', unit: 'BW',     step: null, dw: null, dr: 5 },
-      { id: 'bb_row',   name: 'BB Row',   unit: 'kg',     step: 2.5, dw: 80,   dr: 5 },
-      { id: 'db_bench', name: 'DB Bench', unit: 'kg/arm', step: 2.5, dw: 37.5, dr: 8 },
+      { id: 'deadlift', name: 'Deadlift', unit: 'kg',     step: 2.5 },
+      { id: 'ohp',      name: 'OHP',      unit: 'kg',     step: 2.5 },
+      { id: 'pullups',  name: 'Pull-ups', unit: 'BW',     step: null },
+      { id: 'bb_row',   name: 'BB Row',   unit: 'kg',     step: 2.5 },
+      { id: 'db_bench', name: 'DB Bench', unit: 'kg/arm', step: 2.5 },
     ],
   },
   outdoor: [
-    { id: 'squat_m',  name: 'Squat Machine', unit: 'kg',      step: 5,    dwL: 40, dwR: 50, dr: 10, asym: true },
-    { id: 'bench_o',  name: 'Bench',         unit: 'kg',      step: 2.5,  dw: 80,  dr: 5 },
-    { id: 'dead_o',   name: 'Deadlift',      unit: 'kg',      step: 2.5,  dw: 220, dr: 5 },
-    { id: 'ohp_o',    name: 'OHP',           unit: 'kg',      step: 2.5,  dw: 45,  dr: 5 },
-    { id: 'pu_o',     name: 'Pull-ups',      unit: 'BW',      step: null, dw: null, dr: 5 },
-    { id: 'row_o',    name: 'Row',           unit: 'kg/side', step: 2.5,  dw: 20,  dr: 8 },
+    { id: 'squat_m', name: 'Squat Machine', unit: 'kg',      step: 5,    asym: true },
+    { id: 'bench_o', name: 'Bench',         unit: 'kg',      step: 2.5 },
+    { id: 'dead_o',  name: 'Deadlift',      unit: 'kg',      step: 2.5 },
+    { id: 'ohp_o',   name: 'OHP',           unit: 'kg',      step: 2.5 },
+    { id: 'pu_o',    name: 'Pull-ups',      unit: 'BW',      step: null },
+    { id: 'row_o',   name: 'Row',           unit: 'kg/side', step: 2.5 },
   ],
 };
 
@@ -557,6 +586,7 @@ let S = {
   sessions: [],
   suggestions: {},      // { [exId]: 'loading' | { weight, reps, note } | null }
   editMode: false,      // true when editing a saved session
+  profile: null,        // { display_name, ai_context, exercise_defaults }
 };
 
 // ── INIT ──────────────────────────────────────────────────────────────────
@@ -632,13 +662,14 @@ async function startSession(type) {
 
 function defaultInputs(ex) {
   const last = S.lastVals[ex.id];
+  const pd = S.profile?.exercise_defaults?.[ex.id] ?? {};
   if (ex.asym) {
-    return { weightL: last?.weightL ?? ex.dwL, weightR: last?.weightR ?? ex.dwR, reps: last?.reps ?? ex.dr, notes: '' };
+    return { weightL: last?.weightL ?? pd.weightL ?? null, weightR: last?.weightR ?? pd.weightR ?? null, reps: last?.reps ?? pd.reps ?? 5, notes: '' };
   }
   if (!ex.unit || ex.unit === 'BW') {
-    return { weight: null, reps: last?.reps ?? ex.dr, notes: '' };
+    return { weight: null, reps: last?.reps ?? pd.reps ?? 5, notes: '' };
   }
-  return { weight: last?.weight ?? ex.dw, reps: last?.reps ?? ex.dr, notes: '' };
+  return { weight: last?.weight ?? pd.weight ?? null, reps: last?.reps ?? pd.reps ?? 5, notes: '' };
 }
 
 // ── RENDER SESSION ────────────────────────────────────────────────────────
@@ -1206,18 +1237,22 @@ async function initAuth() {
   const { data: { session } } = await sbClient.auth.getSession();
   authUser = session?.user ?? null;
   updateAuthUI();
+  if (authUser) loadProfile();
   sbClient.auth.onAuthStateChange((_event, session) => {
     authUser = session?.user ?? null;
     updateAuthUI();
-    if (authUser) syncPendingSessions();
+    if (authUser) { syncPendingSessions(); loadProfile(); }
+    else S.profile = null;
   });
 }
 
 function updateAuthUI() {
   const btn = document.getElementById('auth-btn');
   const dot = document.getElementById('sync-dot');
+  const profBtn = document.getElementById('profile-btn');
   if (!btn || !sbClient) return;
   btn.style.display = 'flex';
+  if (profBtn) profBtn.style.display = authUser ? 'flex' : 'none';
   if (authUser) {
     const av = authUser.user_metadata?.avatar_url;
     btn.innerHTML = av ? `<img class="auth-avatar" src="${esc(av)}" alt="">` : '👤';
@@ -1379,6 +1414,49 @@ async function pullSessionsFromSupabase() {
   } catch (e) {
     console.error('Pull from Supabase failed:', e);
   }
+}
+
+// ── PROFILE ───────────────────────────────────────────────────────────────
+
+async function loadProfile() {
+  if (!sbClient || !authUser) return;
+  const { data } = await sbClient
+    .from('user_profiles')
+    .select('display_name, ai_context, exercise_defaults')
+    .eq('user_id', authUser.id)
+    .maybeSingle();
+  S.profile = data ?? { display_name: '', ai_context: '', exercise_defaults: {} };
+}
+
+async function saveProfile() {
+  if (!sbClient || !authUser) return;
+  const display_name = document.getElementById('prof-name').value.trim();
+  const ai_context   = document.getElementById('prof-context').value.trim();
+  const btn = document.getElementById('prof-save');
+  btn.disabled = true;
+  try {
+    const { error } = await sbClient.from('user_profiles').upsert({
+      user_id: authUser.id, display_name, ai_context,
+      exercise_defaults: S.profile?.exercise_defaults ?? {},
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' });
+    if (error) throw error;
+    S.profile = { ...S.profile, display_name, ai_context };
+    showToast('Profile saved');
+    showScreen('home');
+  } catch (e) {
+    showToast('Save failed');
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function showProfile() {
+  if (!authUser) { showScreen('login'); return; }
+  document.getElementById('prof-name').value    = S.profile?.display_name ?? '';
+  document.getElementById('prof-context').value = S.profile?.ai_context   ?? '';
+  showScreen('profile');
 }
 
 // ── AI SUGGESTIONS ────────────────────────────────────────────────────────

@@ -1,10 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const SYSTEM_PROMPT = `You are a strength coach for Dag, a Norwegian powerlifter and barbell athlete in his 40s.
-He is recovering from a left patellar tendon rupture (surgery approximately 18 months ago).
-He trains at a gym in Oslo and an outdoor barbell park.
-
-Write a single short message (1–2 sentences, plain text, no markdown) for the top of Dag's session screen.
+const BASE_SYSTEM_PROMPT = `You are a personal strength coach.
+Write a single short message (1–2 sentences, plain text, no markdown) for the top of the athlete's session screen.
 Cover ONE of: recovery readiness (is it too soon after the last session?), what to focus on today based on recent trends, or a brief motivational nudge.
 Be specific and direct — avoid generic filler. Use the session history to say something concrete.`
 
@@ -36,6 +33,19 @@ Deno.serve(async (req: Request) => {
     const body = await req.json()
     const { type } = body as { type: string }
 
+    // Fetch user profile for personalised coaching context
+    const { data: profile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('display_name, ai_context')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    const systemPrompt = profile?.ai_context
+      ? `${BASE_SYSTEM_PROMPT}\n\nAthlete context: ${profile.ai_context}`
+      : BASE_SYSTEM_PROMPT
+
+    const name = profile?.display_name ?? 'the athlete'
+
     // Fetch last 10 sessions for this user
     const { data: sessions, error: sessErr } = await supabaseAdmin
       .from('sessions')
@@ -54,7 +64,7 @@ Deno.serve(async (req: Request) => {
       .join('\n')
 
     const today = new Date().toLocaleDateString('en-GB')
-    const userMessage = `Today is ${today}. Dag is about to start a ${type} session.
+    const userMessage = `Today is ${today}. ${name} is about to start a ${type} session.
 
 Recent sessions (newest first):
 ${sessionList || 'No previous sessions.'}
@@ -74,7 +84,7 @@ Write the brief message.`
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 120,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
       }),
     })
