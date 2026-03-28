@@ -12,7 +12,6 @@ Respond ONLY with valid JSON and nothing else — no markdown fence, no explanat
 {"weight": number_or_null, "reps": number, "note": "one-sentence rationale"}`
 
 Deno.serve(async (req: Request) => {
-  // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
@@ -28,14 +27,14 @@ Deno.serve(async (req: Request) => {
       return jsonResp({ error: 'Unauthorized' }, 401)
     }
 
-    const supabaseAdmin = createClient(
+    // Use user-scoped client — gateway already verified the JWT, RLS handles data access
+    const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } }
     )
 
-    // Verify the user's JWT
-    const token = authHeader.slice(7)
-    const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token)
+    const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return jsonResp({ error: 'Unauthorized' }, 401)
 
     const body = await req.json()
@@ -44,8 +43,8 @@ Deno.serve(async (req: Request) => {
       return jsonResp({ error: 'Missing exercise_id or exercise_name' }, 400)
     }
 
-    // Fetch user profile for personalised coaching context
-    const { data: profile } = await supabaseAdmin
+    // Fetch user profile for personalised coaching context (RLS: own row only)
+    const { data: profile } = await supabase
       .from('user_profiles')
       .select('display_name, ai_context')
       .eq('user_id', user.id)
@@ -57,37 +56,16 @@ Deno.serve(async (req: Request) => {
 
     const name = profile?.display_name ?? 'the athlete'
 
-    // Fetch the IDs of all sessions belonging to this user
-    const { data: userSessions, error: sessErr } = await supabaseAdmin
-      .from('sessions')
-      .select('id')
-      .eq('user_id', user.id)
-    if (sessErr) throw new Error(sessErr.message)
+    // Fetch last ~25 sets for this exercise (RLS restricts to own sessions/sets)
+    const { data: sets, error: setsErr } = await supabase
+      .from('sets')
+      .select('weight, weight_l, weight_r, reps, notes, logged_at')
+      .eq('exercise_id', exercise_id)
+      .order('logged_at', { ascending: false })
+      .limit(25)
+    if (setsErr) throw new Error(setsErr.message)
 
-    const sessionIds = (userSessions ?? []).map((s: { id: string }) => s.id)
-
-    // Fetch the last ~25 sets for this exercise (roughly 5 sessions worth)
-    let recentSets: Array<{
-      weight: number | null
-      weight_l: number | null
-      weight_r: number | null
-      reps: number | null
-      notes: string | null
-      logged_at: string | null
-    }> = []
-
-    if (sessionIds.length > 0) {
-      const { data: sets, error: setsErr } = await supabaseAdmin
-        .from('sets')
-        .select('weight, weight_l, weight_r, reps, notes, logged_at')
-        .eq('exercise_id', exercise_id)
-        .in('session_id', sessionIds)
-        .order('logged_at', { ascending: false })
-        .limit(25)
-      if (setsErr) throw new Error(setsErr.message)
-      recentSets = sets ?? []
-    }
-
+    const recentSets = sets ?? []
     const historyText =
       recentSets.length === 0
         ? 'No history yet — this is the first time logging this exercise.'
@@ -145,7 +123,6 @@ Suggest the next working set.`
     try {
       suggestion = JSON.parse(rawText)
     } catch {
-      // Try to extract bare JSON object from the response text
       const match = rawText.match(/\{[\s\S]*?\}/)
       suggestion = match
         ? JSON.parse(match[0])

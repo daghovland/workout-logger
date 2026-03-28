@@ -21,20 +21,21 @@ Deno.serve(async (req: Request) => {
       return jsonResp({ error: 'Unauthorized' }, 401)
     }
 
-    const supabaseAdmin = createClient(
+    // Use user-scoped client — gateway already verified the JWT, RLS handles data access
+    const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } }
     )
 
-    const token = authHeader.slice(7)
-    const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token)
+    const { data: { user }, error: authErr } = await supabase.auth.getUser()
     if (authErr || !user) return jsonResp({ error: 'Unauthorized' }, 401)
 
     const body = await req.json()
     const { type } = body as { type: string }
 
-    // Fetch user profile for personalised coaching context
-    const { data: profile } = await supabaseAdmin
+    // Fetch user profile (RLS: own row only)
+    const { data: profile } = await supabase
       .from('user_profiles')
       .select('display_name, ai_context')
       .eq('user_id', user.id)
@@ -46,11 +47,10 @@ Deno.serve(async (req: Request) => {
 
     const name = profile?.display_name ?? 'the athlete'
 
-    // Fetch last 10 sessions for this user
-    const { data: sessions, error: sessErr } = await supabaseAdmin
+    // Fetch last 10 sessions (RLS: own sessions only)
+    const { data: sessions, error: sessErr } = await supabase
       .from('sessions')
-      .select('id, date, type, duration_ms')
-      .eq('user_id', user.id)
+      .select('date, type, duration_ms')
       .order('date', { ascending: false })
       .limit(10)
     if (sessErr) throw new Error(sessErr.message)
