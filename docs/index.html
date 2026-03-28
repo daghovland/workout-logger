@@ -99,6 +99,13 @@
 
     /* ── SESSION ─────────────────────────────── */
     #session { padding-bottom: calc(var(--safe-b) + 80px); }
+    .session-brief {
+      margin: 8px 14px 0; padding: 10px 12px;
+      background: var(--surface2); border-radius: 10px;
+      font-size: 13px; color: var(--muted); line-height: 1.4;
+    }
+    .session-brief.loading { opacity: 0.5; }
+    .session-brief.error { color: #e05; }
     .session-body { flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
 
     .sec-label {
@@ -383,6 +390,7 @@
     <span class="timer" id="session-timer">0:00</span>
     <button class="ibtn" onclick="cancelSession()">✕</button>
   </div>
+  <div id="session-brief" class="session-brief" style="display:none"></div>
   <div class="session-body" id="session-body"></div>
   <div class="finish-bar">
     <span class="timer" id="finish-timer">0:00</span>
@@ -618,7 +626,8 @@ async function startSession(type) {
   renderSession();
   showScreen('session');
   startTimer();
-  fetchSuggestions(type); // fire-and-forget, updates cards as results arrive
+  fetchSessionBrief(type); // fire-and-forget, banner at top of session
+  fetchSuggestions(type);  // fire-and-forget, updates cards as results arrive
 }
 
 function defaultInputs(ex) {
@@ -1387,12 +1396,38 @@ function buildExMeta(ex, lastVal) {
   if (sug === 'loading') {
     return `${lastText} <span style="color:var(--accent);opacity:0.5;font-size:11px">⚡ …</span>`;
   }
-  if (sug.error || typeof sug !== 'object') return lastText;
+  if (sug.error || typeof sug !== 'object') return `${lastText} <span style="color:#e05;font-size:11px" title="AI suggestion unavailable (${sug.error ?? 'error'})">⚡ ✕</span>`;
   const wStr = sug.weight !== null && sug.weight !== undefined
     ? `${fmtW(sug.weight)} kg × `
     : '';
   const noteAttr = sug.note ? ` title="${esc(sug.note)}"` : '';
   return `${lastText} <span style="color:var(--accent);font-size:11px"${noteAttr}>⚡ ${wStr}${sug.reps}r</span>`;
+}
+
+async function fetchSessionBrief(type) {
+  const el = document.getElementById('session-brief');
+  if (!sbClient || !authUser) { el.style.display = 'none'; return; }
+  el.className = 'session-brief loading';
+  el.textContent = '⚡ Getting session brief…';
+  el.style.display = '';
+  try {
+    const { data: { session } } = await sbClient.auth.getSession();
+    const token = session?.access_token;
+    if (!token) { el.style.display = 'none'; return; }
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/session-brief`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type }),
+    });
+    if (!resp.ok) throw new Error(`${resp.status}`);
+    const { message, error } = await resp.json();
+    if (error || !message) throw new Error(error ?? 'empty response');
+    el.className = 'session-brief';
+    el.textContent = message;
+  } catch (e) {
+    el.className = 'session-brief error';
+    el.textContent = `⚡ Could not load session brief (${e.message})`;
+  }
 }
 
 async function fetchSuggestions(type) {
@@ -1413,9 +1448,9 @@ async function fetchSuggestions(type) {
           },
           body: JSON.stringify({ exercise_id: ex.id, exercise_name: ex.name }),
         });
-        S.suggestions[ex.id] = resp.ok ? await resp.json() : null;
+        S.suggestions[ex.id] = resp.ok ? await resp.json() : { error: `${resp.status}` };
       } catch {
-        S.suggestions[ex.id] = null;
+        S.suggestions[ex.id] = { error: 'offline' };
       }
       // Update just this card's meta line without re-rendering the whole session
       const metaEl = document.querySelector(`#ex-${ex.id} .ex-meta`);
