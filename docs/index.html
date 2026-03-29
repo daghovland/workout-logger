@@ -1206,7 +1206,6 @@ function buildHistItem(session, idx) {
       </div>
       <span class="hchev">▾</span>
     </div>
-    ${session.notes ? `<div class="hist-note">${esc(session.notes)}</div>` : ''}
     <div class="hdetail">
       ${exercises.map(ex => {
         const sets = session.exercises[ex.id]?.sets || [];
@@ -1215,6 +1214,7 @@ function buildHistItem(session, idx) {
           <div class="hex-sets">${sets.map((s,i) => `<div class="chip"><span class="chip-n">${i+1}</span><span>${fmtSetShort(ex,s)}</span></div>`).join('')}</div>
         </div>`;
       }).join('')}
+      ${session.notes ? `<div class="hist-note">${esc(session.notes)}</div>` : ''}
       <div class="hist-acts">
         <button class="hist-act" onclick="startEditSession(${session.id})">✎ Edit</button>
         <button class="hist-act danger" onclick="deleteSession(${session.id})">Delete</button>
