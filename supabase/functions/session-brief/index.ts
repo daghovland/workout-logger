@@ -68,12 +68,31 @@ Deno.serve(async (req: Request) => {
       })
       .join('\n')
 
+    // Fetch last 7 days of daily logs (sleep + activity)
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    const { data: dailyLogs } = await supabase
+      .from('daily_logs')
+      .select('date, sleep_hours, activity')
+      .gte('date', sevenDaysAgo.toISOString().slice(0, 10))
+      .order('date', { ascending: false })
+
+    const dailyLogText = (dailyLogs ?? [])
+      .filter(l => l.sleep_hours != null || l.activity)
+      .map(l => {
+        const d = new Date(l.date).toLocaleDateString('en-GB')
+        const sleep = l.sleep_hours != null ? `${l.sleep_hours}h sleep` : ''
+        const act   = l.activity ?? ''
+        return `${d}: ${[sleep, act].filter(Boolean).join(' — ')}`
+      })
+      .join('\n')
+
     const today = new Date().toLocaleDateString('en-GB')
     const userMessage = `Today is ${today}. ${name} is about to start a ${type} session.
 
 Recent sessions (newest first):
 ${sessionList || 'No previous sessions.'}
-
+${dailyLogText ? `\nRecent sleep & other activity (last 7 days):\n${dailyLogText}` : ''}
 Write the brief message.`
 
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY')

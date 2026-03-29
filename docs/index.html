@@ -88,7 +88,33 @@
     .gym-last { color: #c8f542; }
     .out-last { color: #ff6b2b; }
 
-    .home-actions { display: flex; gap: 8px; padding-top: 4px; }
+    .daily-log-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 12px 14px; display: flex;
+      flex-direction: column; gap: 8px;
+    }
+    .daily-log-row { display: flex; align-items: center; gap: 8px; }
+    .daily-log-lbl { font-size: 12px; color: var(--muted); font-weight: 600; width: 54px; flex-shrink: 0; }
+    .daily-log-input {
+      flex: 1; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-size: 14px;
+      padding: 7px 10px; font-family: inherit; outline: none;
+    }
+    .daily-log-input:focus { border-color: var(--accent); }
+    .sleep-input { width: 64px; flex: none; text-align: center; }
+    .daily-log-unit { font-size: 12px; color: var(--muted); }
+    .daily-log-date {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--muted); font-size: 12px; padding: 7px 8px; font-family: inherit;
+      outline: none; color-scheme: dark; margin-left: auto;
+    }
+    .daily-log-save {
+      align-self: flex-end; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-size: 13px; font-weight: 600;
+      padding: 6px 16px; cursor: pointer; font-family: inherit;
+    }
+    .daily-log-save:active { background: var(--border); }
+    .home-actions { display: flex; gap: 8px; padding-top: 4px; flex-wrap: wrap; }
     .btn-ghost {
       flex: 1; background: var(--surface2); border: none;
       border-radius: var(--r); color: var(--text);
@@ -203,7 +229,7 @@
     .sinput[type=number] { -moz-appearance: textfield; appearance: textfield; }
    
 
-    .dual { display: flex; gap: 6px;  }  
+    .dual { display: flex; gap: 6px; flex-direction: column; }  
   
     .dual-side { flex: 1; }
     .dual-lbl { font-size: 11px; color: var(--muted); text-align: center; margin-top: 3px; }
@@ -411,6 +437,21 @@
     <p>Squat machine, bench, deadlift, OHP, pull-ups, row</p>
     <div class="last out-last" id="out-last"></div>
   </button>
+  <div id="daily-log-card" class="daily-log-card" style="display:none">
+    <div class="daily-log-row">
+      <label class="daily-log-lbl">Sleep</label>
+      <div class="daily-log-sleep">
+        <input id="log-sleep" type="number" min="0" max="24" step="0.5" placeholder="hrs" class="daily-log-input sleep-input">
+        <span class="daily-log-unit">hours</span>
+      </div>
+      <input id="log-date" type="date" class="daily-log-date">
+    </div>
+    <div class="daily-log-row">
+      <label class="daily-log-lbl">Activity</label>
+      <input id="log-activity" type="text" placeholder="e.g. Ran 20 min, heavy garden work…" class="daily-log-input activity-input">
+    </div>
+    <button class="daily-log-save" onclick="saveDailyLog()">Log</button>
+  </div>
   <div class="home-actions">
     <button class="btn-ghost" onclick="showHistory()">📋 History</button>
     <button class="btn-ghost" onclick="exportData()">⬇ Export JSON</button>
@@ -828,7 +869,9 @@ function buildExBody(ex, sets) {
     html += `<div class="input-row">
       <span class="input-lbl">Weight<br><small style="font-size:10px;color:var(--muted)">${ex.unit}</small></span>
       ${mkStepper(`${ex.id}-w`, inp.weight, ex.step)}
-      <span class="input-lbl" style="text-align:center">Reps</span>
+    </div>
+    <div class="input-row">
+      <span class="input-lbl">Reps</span>
       ${mkStepper(`${ex.id}-r`, inp.reps, 1)}
     </div>`;
   } else {
@@ -1381,12 +1424,12 @@ async function initAuth() {
   const { data: { session } } = await sbClient.auth.getSession();
   authUser = session?.user ?? null;
   updateAuthUI();
-  if (authUser) loadProfile();
+  if (authUser) { loadProfile(); loadDailyLog(); }
   sbClient.auth.onAuthStateChange((_event, session) => {
     authUser = session?.user ?? null;
     updateAuthUI();
-    if (authUser) { syncPendingSessions(); loadProfile(); }
-    else S.profile = null;
+    if (authUser) { syncPendingSessions(); loadProfile(); loadDailyLog(); }
+    else { S.profile = null; document.getElementById('daily-log-card').style.display = 'none'; }
   });
 }
 
@@ -1563,6 +1606,50 @@ async function pullSessionsFromSupabase() {
 }
 
 // ── PROFILE ───────────────────────────────────────────────────────────────
+
+// ── DAILY LOG ─────────────────────────────────────────────────────────────
+
+async function loadDailyLog() {
+  if (!sbClient || !authUser) return;
+  const card = document.getElementById('daily-log-card');
+  card.style.display = '';
+
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('log-date').value = today;
+
+  const { data } = await sbClient
+    .from('daily_logs')
+    .select('sleep_hours, activity')
+    .eq('user_id', authUser.id)
+    .eq('date', today)
+    .maybeSingle();
+
+  document.getElementById('log-sleep').value    = data?.sleep_hours ?? '';
+  document.getElementById('log-activity').value = data?.activity    ?? '';
+}
+
+async function saveDailyLog() {
+  if (!sbClient || !authUser) return;
+  const date     = document.getElementById('log-date').value;
+  const sleepVal = document.getElementById('log-sleep').value;
+  const activity = document.getElementById('log-activity').value.trim();
+  if (!date) return;
+
+  const payload = {
+    user_id:     authUser.id,
+    date,
+    sleep_hours: sleepVal !== '' ? parseFloat(sleepVal) : null,
+    activity:    activity || null,
+    updated_at:  new Date().toISOString(),
+  };
+
+  const { error } = await sbClient
+    .from('daily_logs')
+    .upsert(payload, { onConflict: 'user_id,date' });
+
+  if (error) { showToast('Log failed'); console.error(error); return; }
+  showToast('Logged');
+}
 
 async function loadProfile() {
   if (!sbClient || !authUser) return;
