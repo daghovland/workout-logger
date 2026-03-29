@@ -3,7 +3,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const BASE_SYSTEM_PROMPT = `You are a personal strength coach.
 Write a single short message (1–2 sentences, plain text, no markdown) for the top of the athlete's session screen.
 Cover ONE of: recovery readiness (is it too soon after the last session?), what to focus on today based on recent trends, or a brief motivational nudge.
-Be specific and direct — avoid generic filler. Use the session history to say something concrete.`
+Be specific and direct — avoid generic filler. Use the session history to say something concrete.
+ Use all history elements, both Gym and Outdoor, even if the current session is something else.`
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -50,17 +51,13 @@ Deno.serve(async (req: Request) => {
     // Fetch last 10 sessions (RLS: own sessions only)
     const { data: sessions, error: sessErr } = await supabase
       .from('sessions')
-      .select('date, type, duration_ms')
+      .select('date, type')
       .order('date', { ascending: false })
       .limit(10)
     if (sessErr) throw new Error(sessErr.message)
 
     const sessionList = (sessions ?? [])
-      .map(s => {
-        const d = new Date(s.date).toLocaleDateString('en-GB')
-        const dur = s.duration_ms ? ` (${Math.round(s.duration_ms / 60000)} min)` : ''
-        return `${d}: ${s.type}${dur}`
-      })
+      .map(s => `${new Date(s.date).toLocaleDateString('en-GB')}: ${s.type}`)
       .join('\n')
 
     const today = new Date().toLocaleDateString('en-GB')

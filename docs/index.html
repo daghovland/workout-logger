@@ -923,6 +923,17 @@ async function finishSession() {
 
   if (S.editMode) {
     if (totalSets === 0 && !confirm('No sets remain. Save empty session?')) return;
+    const durInput = document.getElementById('edit-duration');
+    if (durInput && durInput.value !== '') {
+      S.session.durationMs = Math.round(parseFloat(durInput.value) * 60000);
+    }
+    const editDateInput = document.getElementById('edit-date');
+    if (editDateInput?.value) {
+      const orig = new Date(S.session.date);
+      const [y, m, d] = editDateInput.value.split('-').map(Number);
+      orig.setFullYear(y, m - 1, d);
+      S.session.date = orig.toISOString();
+    }
     try {
       await dbSave(S.session);
       const idx = S.sessions.findIndex(s => s.id === S.session.id);
@@ -972,10 +983,11 @@ function renderSummary() {
   const exercises = allExercises(S.type).filter(ex => getSets(ex.id).length > 0);
   const totalSets = exercises.reduce((n, ex) => n + getSets(ex.id).length, 0);
 
+  const dateVal = S.session.date.slice(0, 10); // YYYY-MM-DD
   const statsEl = document.createElement('div');
   statsEl.className = 'sum-stat';
   statsEl.innerHTML = `<h3>Session Stats</h3>
-    <div style="display:flex;gap:24px">
+    <div style="display:flex;gap:24px;margin-bottom:14px">
       <div>
         <div style="font-size:26px;font-weight:800">${totalSets}</div>
         <div style="font-size:12px;color:var(--muted)">Total sets</div>
@@ -988,6 +1000,13 @@ function renderSummary() {
         <div style="font-size:26px;font-weight:800">${fmtDuration(S.session.durationMs)}</div>
         <div style="font-size:12px;color:var(--muted)">Duration</div>
       </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:12px;color:var(--muted);font-weight:500">Date</span>
+      <input id="sum-date" type="date" value="${dateVal}"
+        style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+               color:var(--text);font-size:14px;padding:6px 10px;font-family:inherit;outline:none;
+               color-scheme:dark">
     </div>`;
   body.appendChild(statsEl);
 
@@ -1027,6 +1046,14 @@ function renderSummary() {
 }
 
 async function saveSession() {
+  const dateInput = document.getElementById('sum-date');
+  if (dateInput?.value) {
+    // Preserve original time-of-day, just swap the date part
+    const orig = new Date(S.session.date);
+    const [y, m, d] = dateInput.value.split('-').map(Number);
+    orig.setFullYear(y, m - 1, d);
+    S.session.date = orig.toISOString();
+  }
   try {
     await dbSave(S.session);
     syncSessionToSupabase(S.session); // non-blocking, best-effort
@@ -1201,8 +1228,18 @@ function startEditSession(localId) {
 
   document.getElementById('session-title').textContent =
     session.type === 'gym' ? 'Edit Gym Session' : 'Edit Outdoor Session';
-  document.getElementById('session-timer').textContent = fmtDate(session.date, true);
-  document.getElementById('finish-timer').textContent = '';
+  const editDateVal = session.date.slice(0, 10);
+  document.getElementById('session-timer').innerHTML =
+    `<input id="edit-date" type="date" value="${editDateVal}"
+      style="background:transparent;border:none;border-bottom:1px solid var(--muted);
+             color:var(--muted);font-size:13px;padding:2px 4px;font-family:inherit;outline:none;
+             color-scheme:dark">`;
+  const durMins = session.durationMs ? Math.round(session.durationMs / 60000) : '';
+  document.getElementById('finish-timer').innerHTML =
+    `<input id="edit-duration" type="number" min="0" max="300" value="${durMins}" ` +
+    `style="width:48px;background:transparent;border:none;border-bottom:1px solid var(--muted);` +
+    `color:var(--text);font-size:14px;text-align:center;outline:none;font-family:inherit" ` +
+    `placeholder="min"> min`;
   document.getElementById('finish-btn').textContent = 'Save Changes ✓';
   document.body.className = session.type;
   renderSession();
