@@ -311,6 +311,7 @@
     .hex-name { font-size: 12px; color: var(--muted); margin-bottom: 4px; font-weight: 500; }
     .hex-sets { display: flex; flex-wrap: wrap; gap: 4px; }
     .empty { text-align: center; padding: 48px 24px; color: var(--muted); font-size: 15px; line-height: 1.5; }
+    .hist-note { font-size: 13px; color: var(--muted); line-height: 1.5; padding: 8px 0 4px; border-top: 1px solid var(--border); margin-top: 6px; white-space: pre-wrap; }
     .hist-acts { display: flex; gap: 8px; padding: 10px 0 2px; border-top: 1px solid var(--border); margin-top: 10px; }
     .hist-act {
       flex: 1; background: var(--surface2); border: 1px solid var(--border);
@@ -1165,6 +1166,7 @@ function buildHistItem(session, idx) {
           <div class="hex-sets">${sets.map((s,i) => `<div class="chip"><span class="chip-n">${i+1}</span><span>${fmtSetShort(ex,s)}</span></div>`).join('')}</div>
         </div>`;
       }).join('')}
+      ${session.notes ? `<div class="hist-note">${esc(session.notes)}</div>` : ''}
       <div class="hist-acts">
         <button class="hist-act" onclick="startEditSession(${session.id})">✎ Edit</button>
         <button class="hist-act danger" onclick="deleteSession(${session.id})">Delete</button>
