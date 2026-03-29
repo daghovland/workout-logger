@@ -56,14 +56,28 @@ Deno.serve(async (req: Request) => {
 
     const name = profile?.display_name ?? 'the athlete'
 
-    // Fetch last ~25 sets for this exercise (RLS restricts to own sessions/sets)
+    // Fetch last ~25 sets for this exercise with their session notes (RLS restricts to own sessions/sets)
     const { data: sets, error: setsErr } = await supabase
       .from('sets')
-      .select('weight, weight_l, weight_r, reps, notes, logged_at')
+      .select('weight, weight_l, weight_r, reps, notes, logged_at, session_id')
       .eq('exercise_id', exercise_id)
       .order('logged_at', { ascending: false })
       .limit(25)
     if (setsErr) throw new Error(setsErr.message)
+
+    // Fetch session-level notes for the sessions that contain these sets
+    const sessionIds = [...new Set((sets ?? []).map(s => s.session_id).filter(Boolean))]
+    let sessionNotes: Record<string, string> = {}
+    if (sessionIds.length > 0) {
+      const { data: sessionRows } = await supabase
+        .from('sessions')
+        .select('id, notes')
+        .in('local_id', sessionIds)
+        .not('notes', 'is', null)
+      for (const row of sessionRows ?? []) {
+        if (row.notes) sessionNotes[row.id] = row.notes
+      }
+    }
 
     const recentSets = sets ?? []
     const historyText =
@@ -80,8 +94,11 @@ Deno.serve(async (req: Request) => {
                   : s.weight !== null
                   ? `${s.weight} kg`
                   : 'bodyweight'
-              const note = s.notes ? ` (note: ${s.notes})` : ''
-              return `${date}: ${w} × ${s.reps} reps${note}`
+              const setNote = s.notes ? ` (set note: ${s.notes})` : ''
+              const sessNote = s.session_id && sessionNotes[s.session_id]
+                ? ` [session: ${sessionNotes[s.session_id]}]`
+                : ''
+              return `${date}: ${w} × ${s.reps} reps${setNote}${sessNote}`
             })
             .join('\n')
 

@@ -1,10 +1,15 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const BASE_SYSTEM_PROMPT = `You are a personal strength coach.
-Write a single short message (1–2 sentences, plain text, no markdown) for the top of the athlete's session screen.
-Cover ONE of: recovery readiness (is it too soon after the last session?), what to focus on today based on recent trends, or a brief motivational nudge.
+Write a brief pre-session message (2–3 sentences, plain text, no markdown) for the top of the athlete's session screen.
+ Include: (1) what today's session type is and the 2-3 priority lifts, 
+ (2) one specific thing to focus on technically today, 
+ (3) a one-line note on any recovery consideration based on recent session history 
+ (knee, shoulder, days since last session).
+  Tone: direct, like a coach talking to an athlete, not a chatbot. No bullet points. Max 80 words.
 Be specific and direct — avoid generic filler. Use the session history to say something concrete.
- Use all history elements, both Gym and Outdoor, even if the current session is something else.`
+ Use all history elements, both Gym and Outdoor, even if the current session is something else.
+ `
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -48,16 +53,19 @@ Deno.serve(async (req: Request) => {
 
     const name = profile?.display_name ?? 'the athlete'
 
-    // Fetch last 10 sessions (RLS: own sessions only)
+    // Fetch last 10 sessions with notes (RLS: own sessions only)
     const { data: sessions, error: sessErr } = await supabase
       .from('sessions')
-      .select('date, type')
+      .select('date, type, notes')
       .order('date', { ascending: false })
       .limit(10)
     if (sessErr) throw new Error(sessErr.message)
 
     const sessionList = (sessions ?? [])
-      .map(s => `${new Date(s.date).toLocaleDateString('en-GB')}: ${s.type}`)
+      .map(s => {
+        const d = new Date(s.date).toLocaleDateString('en-GB')
+        return s.notes ? `${d}: ${s.type} — ${s.notes}` : `${d}: ${s.type}`
+      })
       .join('\n')
 
     const today = new Date().toLocaleDateString('en-GB')

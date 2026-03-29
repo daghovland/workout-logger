@@ -349,6 +349,29 @@
     }
     .prof-input:focus { border-color: var(--accent); }
 
+    /* ── NOTE CHAT ──────────────────────────── */
+    .note-chat { display: flex; flex-direction: column; gap: 10px; }
+    .note-chat h3 { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+    .chat-messages { display: flex; flex-direction: column; gap: 8px; }
+    .chat-bubble { max-width: 85%; padding: 9px 12px; border-radius: 14px; font-size: 14px; line-height: 1.4; }
+    .chat-bubble.user { align-self: flex-end; background: var(--accent); color: #000; border-bottom-right-radius: 4px; }
+    .chat-bubble.ai { align-self: flex-start; background: var(--surface2); color: var(--text); border-bottom-left-radius: 4px; }
+    .chat-bubble.ai.loading { opacity: 0.5; }
+    .chat-input-row { display: flex; gap: 8px; align-items: flex-end; }
+    .chat-textarea {
+      flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+      color: var(--text); font-size: 14px; padding: 10px 12px; font-family: inherit;
+      resize: none; outline: none; line-height: 1.4; max-height: 120px;
+    }
+    .chat-textarea:focus { border-color: var(--accent); }
+    .chat-send {
+      width: 42px; height: 42px; border-radius: 50%; border: none;
+      background: var(--accent); color: #000; font-size: 18px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .chat-send:disabled { opacity: 0.4; cursor: default; }
+
     /* ── TOAST ───────────────────────────────── */
     #toast {
       position: fixed; bottom: calc(var(--safe-b) + 100px);
@@ -390,6 +413,8 @@
   <div class="home-actions">
     <button class="btn-ghost" onclick="showHistory()">📋 History</button>
     <button class="btn-ghost" onclick="exportData()">⬇ Export JSON</button>
+    <button class="btn-ghost" onclick="document.getElementById('import-file').click()">⬆ Import JSON</button>
+    <input id="import-file" type="file" accept=".json,application/json" style="display:none" onchange="importData(this)">
   </div>
 </div>
 
@@ -415,6 +440,18 @@
     <h1>Session Summary</h1>
   </div>
   <div class="sum-body" id="sum-body"></div>
+  <div class="sum-stat" id="note-chat-wrap" style="margin:0 14px;display:none">
+    <div class="note-chat">
+      <h3>Session Notes</h3>
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-input-row">
+        <textarea id="chat-input" class="chat-textarea" rows="2"
+          placeholder="How did the session feel? Any pain, technique notes, energy levels…"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendNoteMessage()}"></textarea>
+        <button class="chat-send" id="chat-send" onclick="sendNoteMessage()" title="Send">↑</button>
+      </div>
+    </div>
+  </div>
   <div class="sum-actions" id="sum-actions"></div>
 </div>
 
@@ -563,6 +600,15 @@ function dbDelete(id) {
   });
 }
 
+function dbGet(id) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).get(id);
+    req.onsuccess = () => res(req.result ?? null);
+    req.onerror = () => rej(req.error);
+  });
+}
+
 function dbGetAll() {
   return new Promise((res, rej) => {
     const tx = db.transaction(STORE, 'readonly');
@@ -587,6 +633,7 @@ let S = {
   suggestions: {},      // { [exId]: 'loading' | { weight, reps, note } | null }
   editMode: false,      // true when editing a saved session
   profile: null,        // { display_name, ai_context, exercise_defaults }
+  noteChat: [],         // [{role, content}] conversation turns for the current summary
 };
 
 // ── INIT ──────────────────────────────────────────────────────────────────
@@ -977,6 +1024,13 @@ function cancelSession() {
 // ── SUMMARY ───────────────────────────────────────────────────────────────
 
 function renderSummary() {
+  S.noteChat = [];
+  const chatWrap = document.getElementById('note-chat-wrap');
+  if (chatWrap) {
+    chatWrap.style.display = sbClient && authUser ? '' : 'none';
+    document.getElementById('chat-messages').innerHTML = '';
+    document.getElementById('chat-input').value = '';
+  }
   const body = document.getElementById('sum-body');
   body.innerHTML = '';
 
@@ -1131,6 +1185,33 @@ async function exportData() {
 function exportSession() {
   if (!S.session) return;
   dlJson(`daglifts-${S.session.date.slice(0,10)}.json`, S.session);
+}
+
+async function importData(input) {
+  const file = input.files[0];
+  input.value = ''; // reset so the same file can be re-imported if needed
+  if (!file) return;
+  let parsed;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch {
+    showToast('Invalid JSON file');
+    return;
+  }
+  const sessions = Array.isArray(parsed) ? parsed : [parsed];
+  let imported = 0, skipped = 0;
+  for (const session of sessions) {
+    if (!session.id || !session.date || !session.type || !session.exercises) {
+      skipped++;
+      continue;
+    }
+    const existing = await dbGet(session.id);
+    if (existing) { skipped++; continue; }
+    await dbSave(session);
+    imported++;
+  }
+  await refreshHome();
+  showToast(`Imported ${imported} session${imported !== 1 ? 's' : ''}${skipped ? `, skipped ${skipped}` : ''}`);
 }
 
 function dlJson(filename, data) {
@@ -1332,6 +1413,7 @@ async function syncSessionToSupabase(session) {
         type: session.type,
         date: session.date,
         duration_ms: session.durationMs,
+        notes: session.notes ?? null,
       }, { onConflict: 'user_id,local_id' })
       .select('id')
       .single();
@@ -1395,7 +1477,7 @@ async function pullSessionsFromSupabase() {
   try {
     const { data: remoteSessions, error: sErr } = await sbClient
       .from('sessions')
-      .select('id, local_id, type, date, duration_ms')
+      .select('id, local_id, type, date, duration_ms, notes')
       .eq('user_id', authUser.id)
       .order('date', { ascending: false });
     if (sErr) throw sErr;
@@ -1441,6 +1523,7 @@ async function pullSessionsFromSupabase() {
         date: rs.date,
         type: rs.type,
         durationMs: rs.duration_ms ?? 0,
+        notes: rs.notes ?? undefined,
         exercises,
         synced: true,
       });
@@ -1494,6 +1577,92 @@ function showProfile() {
   document.getElementById('prof-name').value    = S.profile?.display_name ?? '';
   document.getElementById('prof-context').value = S.profile?.ai_context   ?? '';
   showScreen('profile');
+}
+
+// ── SESSION NOTES CHAT ────────────────────────────────────────────────────
+
+function buildSessionSummaryText() {
+  if (!S.session) return '';
+  const exercises = allExercises(S.type).filter(ex => getSets(ex.id).length > 0);
+  const lines = [`Type: ${S.type}`, `Date: ${new Date(S.session.date).toLocaleDateString('en-GB')}`];
+  exercises.forEach(ex => {
+    const sets = getSets(ex.id);
+    const setsText = sets.map(s => {
+      if (ex.asym) return `${s.weightL}/${s.weightR}kg × ${s.reps}`;
+      if (s.weight) return `${s.weight}kg × ${s.reps}`;
+      return `${s.reps} reps`;
+    }).join(', ');
+    lines.push(`${ex.name}: ${setsText}`);
+  });
+  return lines.join('\n');
+}
+
+function appendChatBubble(role, content, loading = false) {
+  const wrap = document.getElementById('chat-messages');
+  if (!wrap) return;
+  const div = document.createElement('div');
+  div.className = `chat-bubble ${role}${loading ? ' loading' : ''}`;
+  div.textContent = content;
+  if (loading) div.dataset.loading = '1';
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+  return div;
+}
+
+async function sendNoteMessage() {
+  const input = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('chat-send');
+  const message = input.value.trim();
+  if (!message || !sbClient || !authUser) return;
+
+  input.value = '';
+  input.style.height = '';
+  sendBtn.disabled = true;
+
+  appendChatBubble('user', message);
+  const loadingBubble = appendChatBubble('ai', '…', true);
+
+  try {
+    const { data: { session: authSession } } = await sbClient.auth.getSession();
+    const token = authSession?.access_token;
+    if (!token) throw new Error('Not signed in');
+
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/session-note`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'apikey': SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sessionSummary: buildSessionSummaryText(),
+        existingNote: S.session.notes ?? '',
+        chatHistory: S.noteChat,
+        message,
+      }),
+    });
+
+    const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(data.error ?? resp.status);
+
+    // Update the stored note on the session
+    S.session.notes = data.note || S.session.notes;
+
+    // Update chat history for multi-turn context
+    S.noteChat.push({ role: 'user', content: message });
+    S.noteChat.push({ role: 'assistant', content: JSON.stringify({ reply: data.reply, note: data.note }) });
+
+    // Show the reply
+    loadingBubble.textContent = data.reply;
+    loadingBubble.removeAttribute('data-loading');
+    loadingBubble.classList.remove('loading');
+  } catch (e) {
+    loadingBubble.textContent = `Could not save note (${e.message})`;
+    loadingBubble.style.color = '#e05';
+  } finally {
+    sendBtn.disabled = false;
+    input.focus();
+  }
 }
 
 // ── AI SUGGESTIONS ────────────────────────────────────────────────────────
