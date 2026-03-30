@@ -766,15 +766,17 @@ async function startSession(type) {
 }
 
 function defaultInputs(ex) {
+  const sug = S.suggestions?.[ex.id];
+  const sugData = (sug && typeof sug === 'object') ? sug : null;
   const last = S.lastVals[ex.id];
   const pd = S.profile?.exercise_defaults?.[ex.id] ?? {};
   if (ex.asym) {
-    return { weightL: last?.weightL ?? pd.weightL ?? null, weightR: last?.weightR ?? pd.weightR ?? null, reps: last?.reps ?? pd.reps ?? 5, notes: '' };
+    return { weightL: last?.weightL ?? pd.weightL ?? null, weightR: last?.weightR ?? pd.weightR ?? null, reps: sugData?.reps ?? last?.reps ?? pd.reps ?? 5, notes: '' };
   }
   if (!ex.unit || ex.unit === 'BW') {
-    return { weight: null, reps: last?.reps ?? pd.reps ?? 5, notes: '' };
+    return { weight: null, reps: sugData?.reps ?? last?.reps ?? pd.reps ?? 5, notes: '' };
   }
-  return { weight: last?.weight ?? pd.weight ?? null, reps: last?.reps ?? pd.reps ?? 5, notes: '' };
+  return { weight: sugData?.weight ?? last?.weight ?? pd.weight ?? null, reps: sugData?.reps ?? last?.reps ?? pd.reps ?? 5, notes: '' };
 }
 
 // ── RENDER SESSION ────────────────────────────────────────────────────────
@@ -1924,12 +1926,23 @@ function esc(s) {
 }
 
 function buildExMeta(ex, lastVal) {
-  const lastText = lastVal ? 'Last: ' + fmtSetShort(ex, lastVal) : 'No previous data';
   const sug = S.suggestions?.[ex.id];
+  const lastText = lastVal ? fmtSetShort(ex, lastVal) : null;
+
   if (sug === 'loading') {
-    return `${lastText} <span style="color:var(--accent);opacity:0.5;font-size:11px">⚡</span>`;
+    const lastPart = lastText ? `<span style="color:#555">${lastText}</span>` : '';
+    return `${lastPart}<span style="color:var(--accent);opacity:0.5;font-size:11px"> ⚡</span>`;
   }
-  return lastText;
+
+  if (sug && typeof sug === 'object') {
+    const sugText = ex.asym ? (sug.reps ? `${sug.reps} reps` : null) : fmtSetShort(ex, sug);
+    if (sugText) {
+      const lastPart = lastText ? ` <span style="color:#555">· ${lastText}</span>` : '';
+      return `⚡ ${sugText}${lastPart}`;
+    }
+  }
+
+  return lastText ?? 'No previous data';
 }
 
 // ── COACH (session brief + exercise suggestions, cached per day) ──────────
@@ -2000,6 +2013,15 @@ function applyCoachData(data, type) {
   for (const ex of allExercises(type)) {
     const sug = data?.exercises?.[ex.id] ?? null;
     S.suggestions[ex.id] = sug;
+    // Push suggestion into inputs if no sets logged yet
+    if (sug && typeof sug === 'object' && getSets(ex.id).length === 0) {
+      const inp = S.curInputs[ex.id] || {};
+      if (!ex.asym && sug.weight != null) inp.weight = sug.weight;
+      if (sug.reps) inp.reps = sug.reps;
+      S.curInputs[ex.id] = inp;
+      if (!ex.asym) { const wEl = document.getElementById(`${ex.id}-w`); if (wEl && sug.weight != null) wEl.value = sug.weight; }
+      const rEl = document.getElementById(`${ex.id}-r`); if (rEl && sug.reps) rEl.value = sug.reps;
+    }
     const metaEl = document.querySelector(`#ex-${ex.id} .ex-meta`);
     if (metaEl) metaEl.innerHTML = buildExMeta(ex, S.lastVals[ex.id]);
     const tipEl = document.querySelector(`#ex-${ex.id} .ex-coach-tip`);
