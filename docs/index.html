@@ -695,6 +695,43 @@ let S = {
   noteChat: [],         // [{role, content}] conversation turns for the current summary
 };
 
+// ── DRAFT (crash-safe in-progress session) ───────────────────────────────
+
+const DRAFT_KEY = 'session-draft';
+
+function saveDraft() {
+  if (!S.session) return;
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ session: S.session, type: S.type, sessionStart: S.sessionStart })); } catch {}
+}
+
+function clearDraft() {
+  localStorage.removeItem(DRAFT_KEY);
+}
+
+function loadDraft() {
+  try { const raw = localStorage.getItem(DRAFT_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+
+async function restoreDraft(draft) {
+  S.type = draft.type;
+  S.session = draft.session;
+  S.sessionStart = draft.sessionStart ?? Date.now();
+  S.openEx = null; S.curInputs = {}; S.checklistState = {}; S.lastVals = {}; S.suggestions = {};
+  for (const ps of S.sessions.filter(s => s.type === draft.type)) {
+    for (const [exId, data] of Object.entries(ps.exercises || {})) {
+      if (!S.lastVals[exId] && data.sets?.length > 0) S.lastVals[exId] = data.sets[0];
+    }
+  }
+  for (const ex of allExercises(draft.type)) S.curInputs[ex.id] = defaultInputs(ex);
+  document.getElementById('session-title').textContent = draft.type === 'gym' ? 'Gym Session' : 'Outdoor Session';
+  document.getElementById('finish-btn').textContent = 'Finish Workout ✓';
+  document.body.className = draft.type;
+  renderSession();
+  showScreen('session');
+  startTimer();
+  loadCoachForSession(draft.type);
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────
 
 async function init() {
@@ -702,6 +739,8 @@ async function init() {
   updateHomeDate();
   await refreshHome();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+  const draft = loadDraft();
+  if (draft?.session && draft?.type) await restoreDraft(draft);
   initAuth();
 }
 
@@ -1042,6 +1081,7 @@ function logSet(exId) {
   // Clear notes for next set, keep weight/reps
   S.curInputs[exId] = { ...inp, notes: '' };
 
+  saveDraft();
   showToast(fmtSetShort(ex, set) + ' ✓');
   renderSession();
 }
@@ -1051,6 +1091,7 @@ function delSet(exId, idx) {
   if (!data) return;
   data.sets.splice(idx, 1);
   if (data.sets.length === 0) delete S.session.exercises[exId];
+  saveDraft();
   renderSession();
 }
 
@@ -1117,6 +1158,7 @@ function cancelSession() {
   const hasSets = Object.values(S.session?.exercises || {}).some(e => e.sets.length > 0);
   if (hasSets && !confirm('Cancel session? All logged sets will be lost.')) return;
   stopTimer();
+  clearDraft();
   S.session = null;
   S.type = null;
   showScreen('home');
@@ -1211,6 +1253,7 @@ async function saveSession() {
   }
   try {
     await dbSave(S.session);
+    clearDraft();
     syncSessionToSupabase(S.session); // non-blocking, best-effort
     S.sessions = [S.session, ...S.sessions];
     await refreshHome();
