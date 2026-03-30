@@ -700,7 +700,7 @@ async function init() {
   updateHomeDate();
   await refreshHome();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
-  await initAuth();
+  initAuth();
 }
 
 function updateHomeDate() {
@@ -1524,17 +1524,24 @@ async function deleteSession(localId) {
 
 let authUser = null;
 
-async function initAuth() {
+function initAuth() {
   if (!sbClient) return;
-  const { data: { session } } = await sbClient.auth.getSession();
-  authUser = session?.user ?? null;
-  updateAuthUI();
-  if (authUser) { loadProfile(); loadDailyLog(); }
-  sbClient.auth.onAuthStateChange((_event, session) => {
+  // onAuthStateChange fires INITIAL_SESSION immediately from localStorage —
+  // no network wait. Token refresh (if needed) happens in background.
+  sbClient.auth.onAuthStateChange((event, session) => {
     authUser = session?.user ?? null;
     updateAuthUI();
-    if (authUser) { syncPendingSessions(); loadProfile(); loadDailyLog(); }
-    else { S.profile = null; document.getElementById('daily-log-card').style.display = 'none'; }
+    if (authUser) {
+      loadProfile();
+      loadDailyLog();
+      // Sync on sign-in or when a refreshed token is available
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+        syncPendingSessions();
+      }
+    } else {
+      S.profile = null;
+      document.getElementById('daily-log-card').style.display = 'none';
+    }
   });
 }
 
