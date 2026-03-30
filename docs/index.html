@@ -762,8 +762,7 @@ async function startSession(type) {
   renderSession();
   showScreen('session');
   startTimer();
-  fetchSessionBrief(type); // fire-and-forget, banner at top of session
-  fetchSuggestions(type);  // fire-and-forget, updates cards as results arrive
+  loadCoachForSession(type); // fire-and-forget: brief + all exercise tips, cache-first
 }
 
 function defaultInputs(ex) {
@@ -1549,6 +1548,8 @@ function initAuth() {
       // Sync on sign-in or when a refreshed token is available
       if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
         syncPendingSessions();
+        prefetchCoach('gym');     // warm cache so session start is instant
+        prefetchCoach('outdoor');
       }
     } else {
       S.profile = null;
@@ -1931,73 +1932,105 @@ function buildExMeta(ex, lastVal) {
   return lastText;
 }
 
-async function fetchSessionBrief(type) {
-  const el = document.getElementById('session-brief');
-  if (!sbClient || !authUser) { el.style.display = 'none'; return; }
-  el.className = 'session-brief loading';
-  el.textContent = '⚡ Getting session brief…';
-  el.style.display = '';
+// ── COACH (session brief + exercise suggestions, cached per day) ──────────
+
+function coachCacheKey(type) {
+  const d = new Date();
+  const date = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return `coach-cache-${type}-${date}`;
+}
+
+function getCachedCoach(type) {
+  try {
+    const raw = localStorage.getItem(coachCacheKey(type));
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function setCachedCoach(type, data) {
+  try {
+    const key = coachCacheKey(type);
+    localStorage.setItem(key, JSON.stringify(data));
+    // Remove stale cache entries from previous days
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith('coach-cache-') && k !== key) localStorage.removeItem(k);
+    }
+  } catch {}
+}
+
+async function fetchCoach(type) {
+  if (!sbClient || !authUser) return null;
+  const cached = getCachedCoach(type);
+  if (cached) return cached;
   try {
     const { data: { session } } = await sbClient.auth.getSession();
     const token = session?.access_token;
-    if (!token) { el.style.display = 'none'; return; }
-    const resp = await fetch(`${SUPABASE_URL}/functions/v1/session-brief`, {
+    if (!token) return null;
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/session-coach`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type }),
+      body: JSON.stringify({
+        type,
+        exercises: allExercises(type).map(ex => ({ id: ex.id, name: ex.name })),
+      }),
     });
     if (!resp.ok) throw new Error(`${resp.status}`);
-    const { message, error } = await resp.json();
-    if (error || !message) throw new Error(error ?? 'empty response');
-    el.className = 'session-brief';
-    el.textContent = message;
+    const data = await resp.json();
+    if (!data.error) setCachedCoach(type, data);
+    return data.error ? null : data;
   } catch (e) {
-    el.className = 'session-brief error';
-    el.textContent = `⚡ Could not load session brief (${e.message})`;
+    console.warn('fetchCoach error:', e);
+    return null;
   }
 }
 
-async function fetchSuggestions(type) {
-  if (!sbClient || !authUser) return;
-  try {
-    const { data: { session } } = await sbClient.auth.getSession();
-    const token = session?.access_token;
-    if (!token) return;
-
-    const exercises = allExercises(type);
-    await Promise.all(exercises.map(async ex => {
-      try {
-        const resp = await fetch(`${SUPABASE_URL}/functions/v1/suggest-next-set`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'apikey': SUPABASE_ANON_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ exercise_id: ex.id, exercise_name: ex.name }),
-        });
-        S.suggestions[ex.id] = resp.ok ? await resp.json() : { error: `${resp.status}` };
-      } catch {
-        S.suggestions[ex.id] = { error: 'offline' };
-      }
-      // Update the header meta (loading indicator → clean)
-      const metaEl = document.querySelector(`#ex-${ex.id} .ex-meta`);
-      if (metaEl) metaEl.innerHTML = buildExMeta(ex, S.lastVals[ex.id]);
-      // Update the in-body coach tip
-      const tipEl = document.querySelector(`#ex-${ex.id} .ex-coach-tip`);
-      if (tipEl) {
-        const s = S.suggestions[ex.id];
-        if (s && typeof s === 'object' && s.note) {
-          tipEl.innerHTML = '⚡ ' + esc(s.note);
-          tipEl.classList.remove('loading');
-        } else {
-          tipEl.remove();
-        }
-      }
-    }));
-  } catch (e) {
-    console.warn('fetchSuggestions error:', e);
+function applyCoachData(data, type) {
+  // Session brief
+  const briefEl = document.getElementById('session-brief');
+  if (briefEl) {
+    if (data?.brief) {
+      briefEl.className = 'session-brief';
+      briefEl.textContent = data.brief;
+      briefEl.style.display = '';
+    } else {
+      briefEl.style.display = 'none';
+    }
   }
+  // Exercise suggestions
+  for (const ex of allExercises(type)) {
+    const sug = data?.exercises?.[ex.id] ?? null;
+    S.suggestions[ex.id] = sug;
+    const metaEl = document.querySelector(`#ex-${ex.id} .ex-meta`);
+    if (metaEl) metaEl.innerHTML = buildExMeta(ex, S.lastVals[ex.id]);
+    const tipEl = document.querySelector(`#ex-${ex.id} .ex-coach-tip`);
+    if (tipEl) {
+      if (sug?.note) { tipEl.innerHTML = '⚡ ' + esc(sug.note); tipEl.classList.remove('loading'); }
+      else tipEl.remove();
+    }
+  }
+}
+
+async function loadCoachForSession(type) {
+  if (!sbClient || !authUser) {
+    document.getElementById('session-brief').style.display = 'none';
+    return;
+  }
+  // Show loading state
+  const briefEl = document.getElementById('session-brief');
+  if (briefEl) { briefEl.className = 'session-brief loading'; briefEl.textContent = '⚡ …'; briefEl.style.display = ''; }
+  const data = await fetchCoach(type);
+  if (S.type !== type) return; // session changed while fetching
+  if (!data) {
+    if (briefEl) { briefEl.className = 'session-brief error'; briefEl.textContent = '⚡ Could not load coach data'; }
+    for (const ex of allExercises(type)) { S.suggestions[ex.id] = null; }
+    return;
+  }
+  applyCoachData(data, type);
+}
+
+async function prefetchCoach(type) {
+  if (!sbClient || !authUser || getCachedCoach(type)) return;
+  fetchCoach(type); // fire-and-forget — just populates the cache
 }
 
 // ── BOOT ──────────────────────────────────────────────────────────────────
