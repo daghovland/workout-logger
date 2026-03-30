@@ -7,9 +7,11 @@ Progression principles:
 - If the last session weight looked like a grind (reps at or below the bottom of the rep range), hold the same weight or suggest a slight deload
 - Bodyweight exercises (pull-ups): weight should be null, suggest a rep target only
 - When there is no history, suggest a conservative starting weight based on typical beginner/intermediate numbers for the exercise
+- The note added is shown to the gymnast at session, so use short motivational language 
+(For example: Improve from last gym session by hitting 9 reps on 32,5 kilo. Go!)
 
 Respond ONLY with valid JSON and nothing else — no markdown fence, no explanation outside the JSON:
-{"weight": number_or_null, "reps": number, "note": "one-sentence rationale"}`
+{"weight": number_or_null, "reps": number, "note": "one-sentence rationale plus motivation"}`
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {

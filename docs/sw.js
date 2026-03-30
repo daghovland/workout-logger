@@ -1,4 +1,4 @@
-const CACHE = 'daglifts-v5';
+const CACHE = 'daglifts-v6';
 const ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
