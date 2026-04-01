@@ -10,7 +10,8 @@ const SYSTEM_PROMPT = `You are a personal strength coach. Given an athlete's tra
 Progression principles:
 - Progressive overload: suggest small weight increases (2.5 kg for main barbell lifts, 1.25 kg for dumbbells/cables) when the athlete completed all reps comfortably
 - If the working set looked like a grind (reps at or near the bottom of range), hold weight or suggest a small deload
-- Bodyweight exercises: weight must be null, suggest reps only
+- Bodyweight exercises (unit = BW): weight must be null, suggest reps only
+- Time-based exercises (unit = sec): weight must be null, suggest reps as duration in seconds
 - Rehab exercises: be conservative — prioritise pain-free movement over progression
 - Factor in daily logs: poor sleep or heavy activity outside the gym should prompt modest load targets
 - When no history exists, suggest conservative starting weights typical for the exercise
@@ -45,7 +46,7 @@ Deno.serve(async (req: Request) => {
     if (authErr || !user) return jsonResp({ error: 'Unauthorized' }, 401)
 
     const body = await req.json()
-    const { type, exercises } = body as { type: string; exercises: { id: string; name: string }[] }
+    const { type, exercises } = body as { type: string; exercises: { id: string; name: string; unit: string }[] }
     if (!type || !exercises?.length) return jsonResp({ error: 'Missing type or exercises' }, 400)
 
     // Fetch all context in parallel
@@ -114,23 +115,27 @@ Deno.serve(async (req: Request) => {
       }
       for (const [exId, set] of Object.entries(firstSets)) {
         if (!exerciseHistory[exId]) exerciseHistory[exId] = []
+        const exUnit = exercises.find(e => e.id === exId)?.unit ?? 'BW'
         const w = set.weight_l != null
           ? `${set.weight_l}/${set.weight_r} kg`
           : set.weight != null
           ? `${set.weight} kg`
-          : 'BW'
+          : null
+        const repsStr = exUnit === 'sec' ? `${set.reps} sec` : `${set.reps} reps`
+        const weightStr = w ? `${w} × ` : ''
         const setNote = set.notes ? ` (${set.notes})` : ''
         const sessNote = sess.notes ? ` [${sess.notes}]` : ''
-        exerciseHistory[exId].push(`${d}: ${w} × ${set.reps} reps${setNote}${sessNote}`)
+        exerciseHistory[exId].push(`${d}: ${weightStr}${repsStr}${setNote}${sessNote}`)
       }
     }
 
     const exerciseLines = exercises
       .map(ex => {
+        const unitLabel = ex.unit === 'sec' ? ' [timed, reps=seconds]' : ex.unit === 'BW' ? ' [bodyweight]' : ` [${ex.unit}]`
         const hist = exerciseHistory[ex.id]
         return hist?.length
-          ? `${ex.id} (${ex.name}): ${hist.join(' | ')}`
-          : `${ex.id} (${ex.name}): no history`
+          ? `${ex.id} (${ex.name}${unitLabel}): ${hist.join(' | ')}`
+          : `${ex.id} (${ex.name}${unitLabel}): no history`
       })
       .join('\n')
 

@@ -25,6 +25,7 @@
       --safe-b: env(safe-area-inset-bottom, 0px);
     }
     body.outdoor { --accent: #ff6b2b; --accent-dim: rgba(255,107,43,0.12); }
+    body.noequip { --accent: #5ba4f5; --accent-dim: rgba(91,164,245,0.12); }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
@@ -81,11 +82,13 @@
     .scard:active { transform: scale(0.98); }
     .scard.gym  { border-color: #c8f542; }
     .scard.outdoor { border-color: #ff6b2b; }
+    .scard.noequip { border-color: #5ba4f5; }
     .scard-icon { font-size: 32px; margin-bottom: 10px; display: block; }
     .scard h2 { font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 3px; }
     .scard p { color: var(--muted); font-size: 13px; line-height: 1.4; }
     .scard .last { font-size: 12px; margin-top: 8px; }
     .gym-last { color: #c8f542; }
+    .noequip-last { color: #5ba4f5; }
     .out-last { color: #ff6b2b; }
 
     .daily-log-card {
@@ -376,6 +379,7 @@
     }
     .hbadge.gym { background: rgba(200,245,66,0.15); color: #c8f542; }
     .hbadge.outdoor { background: rgba(255,107,43,0.15); color: #ff6b2b; }
+    .hbadge.noequip { background: rgba(91,164,245,0.15); color: #5ba4f5; }
     .hmeta { flex: 1; }
     .hdate { font-size: 14px; font-weight: 600; }
     .hdur { font-size: 12px; color: var(--muted); margin-top: 2px; }
@@ -498,6 +502,12 @@
     <h2>Outdoor / Street</h2>
     <p>Squat machine, bench, deadlift, OHP, pull-ups, row</p>
     <div class="last out-last" id="out-last"></div>
+  </button>
+  <button class="scard noequip" onclick="startSession('noequip')">
+    <span class="scard-icon">🏠</span>
+    <h2>No Equipment</h2>
+    <p>Push-ups, pull-ups, step-up, 1-leg RDL, inverted rows, wall sit, bird-dog, glute bridge, superman, pike push-ups</p>
+    <div class="last noequip-last" id="noequip-last"></div>
   </button>
   <div class="dsq-card" id="dsq-card">
     <div class="dsq-top">
@@ -664,15 +674,34 @@ const EXERCISES = {
     { id: 'pu_o',    name: 'Pull-ups',      unit: 'BW',      step: null },
     { id: 'row_o',   name: 'Row',           unit: 'kg/side', step: 2.5 },
   ],
+  noequip: [
+    { id: 'ne_pushup',   name: 'Push-ups',                 unit: 'BW',  step: null },
+    { id: 'ne_pullup',   name: 'Pull-ups',                 unit: 'BW',  step: null },
+    { id: 'ne_stepup',   name: 'Step-up',                  unit: 'BW',  step: null },
+    { id: 'ne_slrdl',    name: '1-leg RDL',                unit: 'BW',  step: null },
+    { id: 'ne_invrow',   name: 'Inverted Rows',            unit: 'BW',  step: null },
+    { id: 'ne_wallsit',  name: 'Wall Sit',                 unit: 'sec', step: 5,    defaultReps: 30 },
+    { id: 'ne_birddog',  name: 'Bird-dog',                 unit: 'BW',  step: null },
+    { id: 'ne_slgb',     name: 'Single-leg Glute Bridge',  unit: 'BW',  step: null },
+    { id: 'ne_superman', name: 'Superman Hold',            unit: 'sec', step: 5,    defaultReps: 30 },
+    { id: 'ne_pikepush', name: 'Pike Push-ups',            unit: 'BW',  step: null },
+  ],
 };
+
+function sessionTitle(type) {
+  if (type === 'gym') return 'Gym Session';
+  if (type === 'noequip') return 'No Equipment';
+  return 'Outdoor Session';
+}
 
 function allExercises(type) {
   if (type === 'gym') return [...EXERCISES.gym.rehab, ...EXERCISES.gym.main];
+  if (type === 'noequip') return EXERCISES.noequip;
   return EXERCISES.outdoor;
 }
 
 function findEx(id) {
-  for (const ex of [...allExercises('gym'), ...allExercises('outdoor')]) {
+  for (const ex of [...allExercises('gym'), ...allExercises('outdoor'), ...allExercises('noequip')]) {
     if (ex.id === id) return ex;
   }
   return null;
@@ -856,7 +885,7 @@ async function restoreDraft(draft) {
     }
   }
   for (const ex of allExercises(draft.type)) S.curInputs[ex.id] = defaultInputs(ex);
-  document.getElementById('session-title').textContent = draft.type === 'gym' ? 'Gym Session' : 'Outdoor Session';
+  document.getElementById('session-title').textContent = sessionTitle(draft.type);
   document.getElementById('finish-btn').textContent = 'Finish Workout ✓';
   document.body.className = draft.type;
   renderSession();
@@ -887,10 +916,12 @@ function updateHomeDate() {
 
 async function refreshHome() {
   S.sessions = await dbGetAll();
-  const lastGym = S.sessions.find(s => s.type === 'gym');
-  const lastOut = S.sessions.find(s => s.type === 'outdoor');
-  document.getElementById('gym-last').textContent  = lastGym ? `Last: ${fmtDate(lastGym.date)}` : '';
-  document.getElementById('out-last').textContent  = lastOut ? `Last: ${fmtDate(lastOut.date)}` : '';
+  const lastGym    = S.sessions.find(s => s.type === 'gym');
+  const lastOut    = S.sessions.find(s => s.type === 'outdoor');
+  const lastNoEq   = S.sessions.find(s => s.type === 'noequip');
+  document.getElementById('gym-last').textContent     = lastGym   ? `Last: ${fmtDate(lastGym.date)}`   : '';
+  document.getElementById('out-last').textContent     = lastOut   ? `Last: ${fmtDate(lastOut.date)}`   : '';
+  document.getElementById('noequip-last').textContent = lastNoEq  ? `Last: ${fmtDate(lastNoEq.date)}`  : '';
 }
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────
@@ -927,7 +958,7 @@ async function startSession(type) {
     if (sbClient && authUser) S.suggestions[ex.id] = 'loading'; // will update after render
   }
 
-  document.getElementById('session-title').textContent = type === 'gym' ? 'Gym Session' : 'Outdoor Session';
+  document.getElementById('session-title').textContent = sessionTitle(type);
   document.getElementById('session-timer').textContent = '0:00';
   document.getElementById('finish-timer').textContent = '0:00';
   document.getElementById('finish-btn').textContent = 'Finish Workout ✓';
@@ -949,7 +980,7 @@ function defaultInputs(ex) {
   if (!ex.unit || ex.unit === 'BW') {
     return { weight: null, reps: sugData?.reps ?? last?.reps ?? pd.reps ?? 5, notes: '' };
   }
-  return { weight: sugData?.weight ?? last?.weight ?? pd.weight ?? null, reps: sugData?.reps ?? last?.reps ?? pd.reps ?? 5, notes: '' };
+  return { weight: sugData?.weight ?? last?.weight ?? pd.weight ?? null, reps: sugData?.reps ?? last?.reps ?? pd.reps ?? ex.defaultReps ?? 5, notes: '' };
 }
 
 // ── RENDER SESSION ────────────────────────────────────────────────────────
@@ -967,7 +998,7 @@ function renderSession() {
     body.appendChild(makeLabel('MAIN LIFTS'));
     EXERCISES.gym.main.forEach(ex => body.appendChild(buildExCard(ex)));
   } else {
-    EXERCISES.outdoor.forEach(ex => body.appendChild(buildExCard(ex)));
+    allExercises(S.type).forEach(ex => body.appendChild(buildExCard(ex)));
   }
 
   if (S.editMode) appendEditNotes(savedNotes ?? S.session.notes ?? '');
@@ -1090,7 +1121,7 @@ function buildExBody(ex, sets) {
       <span class="input-lbl">Reps</span>
       ${mkStepper(`${ex.id}-r`, inp.reps, 1)}
     </div>`;
-  } else if (ex.unit && ex.unit !== 'BW') {
+  } else if (ex.unit && ex.unit !== 'BW' && ex.unit !== 'sec') {
     html += `<div class="input-row">
       <span class="input-lbl">Weight<br><small style="font-size:10px;color:var(--muted)">${ex.unit}</small></span>
       ${mkStepper(`${ex.id}-w`, inp.weight, ex.step)}
@@ -1101,8 +1132,8 @@ function buildExBody(ex, sets) {
     </div>`;
   } else {
     html += `<div class="input-row">
-      <span class="input-lbl">Reps</span>
-      ${mkStepper(`${ex.id}-r`, inp.reps, 1)}
+      <span class="input-lbl">${ex.unit === 'sec' ? 'Sec' : 'Reps'}</span>
+      ${mkStepper(`${ex.id}-r`, inp.reps, ex.unit === 'sec' ? (ex.step ?? 5) : 1)}
     </div>`;
   }
 
@@ -1177,7 +1208,7 @@ function saveInputs(exId) {
       reps: isNaN(reps) ? ex.dr : reps,
       notes,
     };
-  } else if (ex.unit && ex.unit !== 'BW') {
+  } else if (ex.unit && ex.unit !== 'BW' && ex.unit !== 'sec') {
     const w = parseFloat(document.getElementById(`${exId}-w`)?.value);
     const reps = parseInt(document.getElementById(`${exId}-r`)?.value);
     S.curInputs[exId] = {
@@ -1205,7 +1236,7 @@ function logSet(exId) {
 
   const set = { timestamp: Date.now() };
   if (ex.asym) { set.weightL = inp.weightL; set.weightR = inp.weightR; }
-  else if (ex.unit && ex.unit !== 'BW') { set.weight = inp.weight; }
+  else if (ex.unit && ex.unit !== 'BW' && ex.unit !== 'sec') { set.weight = inp.weight; }
   set.reps = inp.reps;
   if (inp.notes?.trim()) set.notes = inp.notes.trim();
 
@@ -1525,7 +1556,7 @@ function buildHistItem(session, idx) {
 
   el.innerHTML = `
     <div class="hsession-hdr" onclick="this.closest('.hsession').classList.toggle('open')">
-      <span class="hbadge ${session.type}">${session.type === 'gym' ? 'GYM' : 'OUTDOOR'}</span>
+      <span class="hbadge ${session.type}">${session.type === 'gym' ? 'GYM' : session.type === 'noequip' ? 'HOME' : 'OUTDOOR'}</span>
       <div class="hmeta">
         <div class="hdate">${fmtDate(session.date, true)}</div>
         <div class="hdur">${totalSets} sets${dur}</div>
@@ -1628,6 +1659,7 @@ function fmtW(w) {
 function fmtSetShort(ex, set) {
   const r = set.reps;
   if (ex.asym) return `${fmtW(set.weightL)}L / ${fmtW(set.weightR)}R × ${r}`;
+  if (ex.unit === 'sec') return `${r} sec`;
   if (!ex.unit || ex.unit === 'BW') return `${r} reps`;
   return `${fmtW(set.weight)} ${ex.unit} × ${r}`;
 }
@@ -1741,6 +1773,7 @@ function initAuth() {
         syncPendingSessions();
         prefetchCoach('gym');     // warm cache so session start is instant
         prefetchCoach('outdoor');
+        prefetchCoach('noequip');
       }
     } else {
       S.profile = null;
@@ -2173,7 +2206,7 @@ async function fetchCoach(type) {
       headers: { 'Authorization': `Bearer ${token}`, 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type,
-        exercises: allExercises(type).map(ex => ({ id: ex.id, name: ex.name })),
+        exercises: allExercises(type).map(ex => ({ id: ex.id, name: ex.name, unit: ex.unit ?? 'BW' })),
       }),
     });
     if (!resp.ok) throw new Error(`${resp.status}`);
