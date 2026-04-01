@@ -1450,6 +1450,9 @@ async function showHistory() {
     dailyLogs = data ?? [];
   }
 
+  // Rich daily logs stored in IndexedDB (imported)
+  const richLogs = S.sessions.filter(s => s.type === 'daily_log');
+
   // Decline squat entries from localStorage
   const dsqItems = [];
   for (const key of Object.keys(localStorage)) {
@@ -1460,10 +1463,11 @@ async function showHistory() {
     }
   }
 
-  // Merge sessions, daily logs, and dsq entries sorted by date descending
+  // Merge all entry types sorted by date descending
   const items = [
-    ...S.sessions.map(s => ({ kind: 'session', date: s.date, data: s })),
+    ...S.sessions.filter(s => s.type !== 'daily_log').map(s => ({ kind: 'session', date: s.date, data: s })),
     ...dailyLogs.map(l => ({ kind: 'log', date: l.date, data: l })),
+    ...richLogs.map(l => ({ kind: 'richlog', date: l.date, data: l })),
     ...dsqItems,
   ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -1473,6 +1477,7 @@ async function showHistory() {
     items.forEach((item, idx) => {
       if (item.kind === 'session') body.appendChild(buildHistItem(item.data, idx));
       else if (item.kind === 'log') body.appendChild(buildLogItem(item.data));
+      else if (item.kind === 'richlog') body.appendChild(buildRichLogItem(item.data));
       else body.appendChild(buildDsqHistItem(item.data));
     });
   }
@@ -1519,6 +1524,48 @@ function buildLogItem(log) {
       </div>
     </div>`;
   return el;
+}
+
+function buildRichLogItem(log) {
+  const el = document.createElement('div');
+  el.className = 'hlog';
+  const dateStr = fmtDate(new Date(log.date).toISOString(), true);
+  const summary = (log.notes ?? '').slice(0, 90) + ((log.notes?.length ?? 0) > 90 ? '…' : '');
+
+  // Format structured activity object into readable key: value pairs
+  let activityHtml = '';
+  if (log.activity && typeof log.activity === 'object') {
+    const lines = Object.entries(log.activity)
+      .map(([k, v]) => `<span style="color:var(--muted)">${esc(k)}:</span> ${esc(String(v))}`)
+      .join('<br>');
+    activityHtml = `<div style="font-size:12px;line-height:1.7;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">${lines}</div>`;
+  }
+
+  el.innerHTML = `
+    <div class="hlog-hdr" onclick="this.closest('.hlog').classList.toggle('open')">
+      <span class="hlog-badge">LOG</span>
+      <div class="hlog-meta">
+        <div class="hlog-date">${dateStr}</div>
+        <div class="hlog-summary">${esc(summary)}</div>
+      </div>
+      <span class="hchev">▾</span>
+    </div>
+    <div class="hlog-detail">
+      ${log.notes ? `<p style="font-size:13px;line-height:1.6;color:var(--text)">${esc(log.notes)}</p>` : ''}
+      ${activityHtml}
+      <div style="display:flex;justify-content:flex-end;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+        <button class="hist-act danger" onclick="deleteRichLog(${Number(log.id)})">Delete</button>
+      </div>
+    </div>`;
+  return el;
+}
+
+async function deleteRichLog(id) {
+  if (!confirm('Delete this log entry?')) return;
+  await dbDelete(id);
+  S.sessions = await dbGetAll();
+  showToast('Deleted');
+  await showHistory();
 }
 
 async function saveLogItem(id, date) {
@@ -1605,20 +1652,29 @@ async function importData(input) {
     showToast('Invalid JSON file');
     return;
   }
-  const sessions = Array.isArray(parsed) ? parsed : [parsed];
-  let imported = 0, skipped = 0;
-  for (const session of sessions) {
-    if (!session.id || !session.date || !session.type || !session.exercises) {
-      skipped++;
+  const items = Array.isArray(parsed) ? parsed : [parsed];
+  let imported = 0, merged = 0, skipped = 0;
+  for (const item of items) {
+    if (!item.id || !item.date || !item.type) { skipped++; continue; }
+    if (item.type === 'daily_log') {
+      // Always upsert daily logs — merge with any existing entry
+      await dbSave({ ...item, id: Number(item.id) });
+      merged++;
       continue;
     }
-    const existing = await dbGet(session.id);
+    if (!item.exercises) { skipped++; continue; }
+    const existing = await dbGet(Number(item.id));
     if (existing) { skipped++; continue; }
-    await dbSave(session);
+    await dbSave({ ...item, id: Number(item.id) });
     imported++;
   }
+  S.sessions = await dbGetAll();
   await refreshHome();
-  showToast(`Imported ${imported} session${imported !== 1 ? 's' : ''}${skipped ? `, skipped ${skipped}` : ''}`);
+  const parts = [];
+  if (imported) parts.push(`${imported} session${imported !== 1 ? 's' : ''}`);
+  if (merged) parts.push(`${merged} daily log${merged !== 1 ? 's' : ''}`);
+  if (skipped) parts.push(`${skipped} skipped`);
+  showToast(parts.length ? `Imported: ${parts.join(', ')}` : 'Nothing to import');
 }
 
 function dlJson(filename, data) {
