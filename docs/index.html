@@ -114,6 +114,54 @@
       padding: 6px 16px; cursor: pointer; font-family: inherit;
     }
     .daily-log-save:active { background: var(--border); }
+
+    /* ── DECLINE SQUAT WIDGET ────────────────── */
+    .dsq-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 14px 14px 12px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .dsq-top { display: flex; align-items: center; justify-content: space-between; }
+    .dsq-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+    .dsq-count-lbl { font-size: 12px; font-weight: 700; color: var(--muted); transition: color 0.3s; }
+    .dsq-dots { display: flex; gap: 8px; }
+    .dsq-dot {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: var(--surface2); border: 2px solid var(--border);
+      transition: background 0.25s, border-color 0.25s, transform 0.25s;
+    }
+    .dsq-dot.filled { background: var(--accent); border-color: var(--accent); }
+    .dsq-bottom { display: flex; gap: 8px; }
+    .dsq-btn {
+      flex: 1; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text);
+      font-size: 17px; font-weight: 700; padding: 13px;
+      cursor: pointer; font-family: inherit; transition: opacity 0.2s;
+    }
+    .dsq-btn:active { opacity: 0.6; }
+    .dsq-btn:disabled { opacity: 0.35; cursor: default; }
+    .dsq-undo {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--muted);
+      font-size: 16px; padding: 13px 15px;
+      cursor: pointer; font-family: inherit;
+    }
+    .dsq-undo:active { opacity: 0.6; }
+    @keyframes dsq-celebrate {
+      0%   { transform: scale(1); }
+      30%  { transform: scale(1.35); }
+      55%  { transform: scale(0.9); }
+      75%  { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+    .dsq-card.done .dsq-dot.filled { animation: dsq-celebrate 0.5s ease forwards; }
+    .dsq-card.done .dsq-dot.filled:nth-child(2) { animation-delay: 0.05s; }
+    .dsq-card.done .dsq-dot.filled:nth-child(3) { animation-delay: 0.10s; }
+    .dsq-card.done .dsq-dot.filled:nth-child(4) { animation-delay: 0.15s; }
+    .dsq-card.done .dsq-dot.filled:nth-child(5) { animation-delay: 0.20s; }
+    .dsq-card.done .dsq-dot.filled:nth-child(6) { animation-delay: 0.25s; }
+    .dsq-card.done .dsq-count-lbl { color: var(--accent); }
+
     .home-actions { display: flex; gap: 8px; padding-top: 4px; flex-wrap: wrap; }
     .btn-ghost {
       flex: 1; background: var(--surface2); border: none;
@@ -451,6 +499,17 @@
     <p>Squat machine, bench, deadlift, OHP, pull-ups, row</p>
     <div class="last out-last" id="out-last"></div>
   </button>
+  <div class="dsq-card" id="dsq-card">
+    <div class="dsq-top">
+      <span class="dsq-title">Decline Squat</span>
+      <span class="dsq-count-lbl" id="dsq-count-lbl">0 / 6</span>
+    </div>
+    <div class="dsq-dots" id="dsq-dots"></div>
+    <div class="dsq-bottom">
+      <button class="dsq-btn" id="dsq-btn" onclick="dsqLog()">+ Set</button>
+      <button class="dsq-undo" id="dsq-undo" onclick="dsqUndo()" style="display:none" title="Undo last set">↩</button>
+    </div>
+  </div>
   <div id="daily-log-card" class="daily-log-card" style="display:none">
     <div class="daily-log-row">
       <label class="daily-log-lbl">Sleep</label>
@@ -695,6 +754,80 @@ let S = {
   noteChat: [],         // [{role, content}] conversation turns for the current summary
 };
 
+// ── DECLINE SQUAT TRACKER ─────────────────────────────────────────────────
+
+const DSQ_TARGET = 6;
+
+function dsqKey(date) {
+  return 'dsq-' + (date ?? new Date().toISOString().slice(0, 10));
+}
+
+function dsqGetCount(date) {
+  return parseInt(localStorage.getItem(dsqKey(date)) || '0', 10);
+}
+
+function dsqLog() {
+  const count = dsqGetCount();
+  if (count >= DSQ_TARGET) return;
+  const newCount = count + 1;
+  localStorage.setItem(dsqKey(), newCount);
+  renderDsq(newCount === DSQ_TARGET); // pass true to trigger celebration
+}
+
+function dsqUndo() {
+  const count = dsqGetCount();
+  if (count <= 0) return;
+  localStorage.setItem(dsqKey(), count - 1);
+  renderDsq(false);
+}
+
+function renderDsq(celebrate) {
+  const count = dsqGetCount();
+  const done = count >= DSQ_TARGET;
+  const card = document.getElementById('dsq-card');
+  const dotsEl = document.getElementById('dsq-dots');
+  const countEl = document.getElementById('dsq-count-lbl');
+  const btn = document.getElementById('dsq-btn');
+  const undo = document.getElementById('dsq-undo');
+  if (!card) return;
+
+  let html = '';
+  for (let i = 0; i < DSQ_TARGET; i++) html += `<span class="dsq-dot${i < count ? ' filled' : ''}"></span>`;
+  dotsEl.innerHTML = html;
+  countEl.textContent = `${count} / ${DSQ_TARGET}`;
+  btn.disabled = done;
+  btn.textContent = done ? 'Done! 🎉' : '+ Set';
+  undo.style.display = count > 0 ? '' : 'none';
+
+  if (celebrate) {
+    card.classList.remove('done');
+    card.offsetHeight; // reflow to restart animation
+  }
+  card.classList.toggle('done', done);
+}
+
+function buildDsqHistItem(data) {
+  const el = document.createElement('div');
+  el.className = 'hlog';
+  const dotsFull = '●'.repeat(data.count) + '○'.repeat(Math.max(0, DSQ_TARGET - data.count));
+  el.innerHTML = `
+    <div class="hlog-hdr" style="cursor:default">
+      <span class="hlog-badge" style="background:var(--accent-dim);color:var(--accent)">DSQ</span>
+      <div class="hlog-meta">
+        <div class="hlog-date">${fmtDate(data.date + 'T12:00:00', true)}</div>
+        <div class="hlog-summary" style="letter-spacing:2px">${dotsFull} <span style="letter-spacing:normal">${data.count} / ${DSQ_TARGET} sets</span></div>
+      </div>
+      <button class="hist-act danger" style="flex-shrink:0" onclick="dsqDeleteEntry('${data.date}')">Delete</button>
+    </div>`;
+  return el;
+}
+
+function dsqDeleteEntry(date) {
+  if (!confirm('Delete decline squat entry for this day?')) return;
+  localStorage.removeItem(dsqKey(date));
+  showHistory();
+}
+
 // ── DRAFT (crash-safe in-progress session) ───────────────────────────────
 
 const DRAFT_KEY = 'session-draft';
@@ -738,6 +871,7 @@ async function init() {
   await openDB();
   updateHomeDate();
   await refreshHome();
+  renderDsq(false);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
   const draft = loadDraft();
   if (draft?.session && draft?.type) await restoreDraft(draft);
@@ -1285,10 +1419,21 @@ async function showHistory() {
     dailyLogs = data ?? [];
   }
 
-  // Merge sessions and daily logs sorted by date descending
+  // Decline squat entries from localStorage
+  const dsqItems = [];
+  for (const key of Object.keys(localStorage)) {
+    if (/^dsq-\d{4}-\d{2}-\d{2}$/.test(key)) {
+      const date = key.slice(4);
+      const count = dsqGetCount(date);
+      if (count > 0) dsqItems.push({ kind: 'dsq', date, data: { date, count } });
+    }
+  }
+
+  // Merge sessions, daily logs, and dsq entries sorted by date descending
   const items = [
     ...S.sessions.map(s => ({ kind: 'session', date: s.date, data: s })),
     ...dailyLogs.map(l => ({ kind: 'log', date: l.date, data: l })),
+    ...dsqItems,
   ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
   if (items.length === 0) {
@@ -1296,7 +1441,8 @@ async function showHistory() {
   } else {
     items.forEach((item, idx) => {
       if (item.kind === 'session') body.appendChild(buildHistItem(item.data, idx));
-      else body.appendChild(buildLogItem(item.data));
+      else if (item.kind === 'log') body.appendChild(buildLogItem(item.data));
+      else body.appendChild(buildDsqHistItem(item.data));
     });
   }
   showScreen('history');
