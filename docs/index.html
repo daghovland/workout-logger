@@ -688,6 +688,54 @@ const EXERCISES = {
   ],
 };
 
+// Exercises that share the same movement across session types
+const SIBLING_EXERCISES = {
+  pullups:   ['pu_o', 'ne_pullup'],
+  pu_o:      ['pullups', 'ne_pullup'],
+  ne_pullup: ['pullups', 'pu_o'],
+  deadlift:  ['dead_o'],
+  dead_o:    ['deadlift'],
+  ohp:       ['ohp_o'],
+  ohp_o:     ['ohp'],
+  step_ups:  ['ne_stepup'],
+  ne_stepup: ['step_ups'],
+};
+
+// Return the set with the highest weight (or most reps for BW/sec exercises)
+function maxWeightSet(sets, ex) {
+  if (!sets?.length) return null;
+  if (!ex || !ex.unit || ex.unit === 'BW' || ex.unit === 'sec') {
+    return sets.reduce((best, s) => (!best || s.reps > best.reps) ? s : best, null);
+  }
+  if (ex.asym) {
+    return sets.reduce((best, s) => {
+      const tot  = (s.weightL ?? 0) + (s.weightR ?? 0);
+      const btot = (best?.weightL ?? 0) + (best?.weightR ?? 0);
+      return (!best || tot > btot) ? s : best;
+    }, null);
+  }
+  return sets.reduce((best, s) => (!best || (s.weight ?? 0) > (best.weight ?? 0)) ? s : best, null);
+}
+
+// Build lastVals for a session type — cross-type + sibling aware, max weight/reps
+function buildLastVals(type) {
+  const vals = {};
+  for (const ex of allExercises(type)) {
+    const candidates = [ex.id, ...(SIBLING_EXERCISES[ex.id] ?? [])];
+    outer:
+    for (const ps of S.sessions.filter(s => s.type !== 'daily_log')) {
+      for (const candId of candidates) {
+        const data = ps.exercises?.[candId];
+        if (data?.sets?.length) {
+          vals[ex.id] = maxWeightSet(data.sets, findEx(candId) ?? ex);
+          break outer;
+        }
+      }
+    }
+  }
+  return vals;
+}
+
 function sessionTitle(type) {
   if (type === 'gym') return 'Gym Session';
   if (type === 'noequip') return 'No Equipment';
@@ -878,12 +926,8 @@ async function restoreDraft(draft) {
   S.type = draft.type;
   S.session = draft.session;
   S.sessionStart = draft.sessionStart ?? Date.now();
-  S.openEx = null; S.curInputs = {}; S.checklistState = {}; S.lastVals = {}; S.suggestions = {};
-  for (const ps of S.sessions.filter(s => s.type === draft.type)) {
-    for (const [exId, data] of Object.entries(ps.exercises || {})) {
-      if (!S.lastVals[exId] && data.sets?.length > 0) S.lastVals[exId] = data.sets[0];
-    }
-  }
+  S.openEx = null; S.curInputs = {}; S.checklistState = {}; S.suggestions = {};
+  S.lastVals = buildLastVals(draft.type);
   for (const ex of allExercises(draft.type)) S.curInputs[ex.id] = defaultInputs(ex);
   document.getElementById('session-title').textContent = sessionTitle(draft.type);
   document.getElementById('finish-btn').textContent = 'Finish Workout ✓';
@@ -944,14 +988,7 @@ async function startSession(type) {
   S.lastVals = {};
   S.suggestions = {};
 
-  // Pull last logged values for each exercise from history
-  for (const ps of S.sessions.filter(s => s.type === type)) {
-    for (const [exId, data] of Object.entries(ps.exercises || {})) {
-      if (!S.lastVals[exId] && data.sets && data.sets.length > 0) {
-        S.lastVals[exId] = data.sets[0]; // first set = working weight target
-      }
-    }
-  }
+  S.lastVals = buildLastVals(type);
 
   for (const ex of allExercises(type)) {
     S.curInputs[ex.id] = defaultInputs(ex);
@@ -2263,6 +2300,12 @@ async function fetchCoach(type) {
       body: JSON.stringify({
         type,
         exercises: allExercises(type).map(ex => ({ id: ex.id, name: ex.name, unit: ex.unit ?? 'BW' })),
+        rich_logs: (() => {
+          const cutoff = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+          return (S.sessions ?? [])
+            .filter(s => s.type === 'daily_log' && s.date >= cutoff)
+            .map(l => ({ date: l.date, notes: l.notes, activity: l.activity }));
+        })(),
       }),
     });
     if (!resp.ok) throw new Error(`${resp.status}`);
