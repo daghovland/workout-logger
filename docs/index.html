@@ -1521,28 +1521,37 @@ async function showHistory() {
   // Fetch daily logs if signed in — use getSession() to handle auth-not-yet-resolved on mobile
   let dailyLogs = [];
   let remoteDsqByDate = {};
-  let _dbg = { uid: null, rows: 0, err: null };
   if (sbClient) {
     try {
       const { data: { session } } = await sbClient.auth.getSession();
       const uid = authUser?.id ?? session?.user?.id;
-      _dbg.uid = uid ?? 'null';
       if (uid) {
+        // Try full select including decline_squats; fall back without it if column is missing
+        let rows = [];
         const { data, error } = await sbClient
           .from('daily_logs')
           .select('id, date, sleep_hours, activity, decline_squats')
           .eq('user_id', uid)
           .order('date', { ascending: false })
           .limit(60);
-        if (error) _dbg.err = error.message;
-        const rows = data ?? [];
-        _dbg.rows = rows.length;
-        dailyLogs = rows.map(({ decline_squats: _ds, ...rest }) => rest);
-        for (const l of rows) {
-          if (l.decline_squats != null) remoteDsqByDate[l.date] = l.decline_squats;
+        if (error) {
+          // Column likely missing — retry without it
+          const { data: data2 } = await sbClient
+            .from('daily_logs')
+            .select('id, date, sleep_hours, activity')
+            .eq('user_id', uid)
+            .order('date', { ascending: false })
+            .limit(60);
+          rows = data2 ?? [];
+        } else {
+          rows = data ?? [];
+          for (const l of rows) {
+            if (l.decline_squats != null) remoteDsqByDate[l.date] = l.decline_squats;
+          }
         }
+        dailyLogs = rows.map(({ decline_squats: _ds, ...rest }) => rest);
       }
-    } catch (e) { _dbg.err = String(e); }
+    } catch {}
   }
 
   // Rich daily logs stored in IndexedDB (imported)
@@ -1571,14 +1580,6 @@ async function showHistory() {
     ...richLogs.map(l => ({ kind: 'richlog', date: l.date, data: l })),
     ...dsqItems,
   ].sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  // ── TEMP DEBUG — remove after diagnosing mobile log issue ──────────────
-  const richCount = richLogs.length;
-  const dbgEl = document.createElement('div');
-  dbgEl.style.cssText = 'font-size:11px;color:#666;padding:6px 14px;border-bottom:1px solid #222;margin-bottom:4px;line-height:1.6';
-  dbgEl.textContent = `[debug] auth uid: ${_dbg.uid ?? '—'} | sb logs: ${_dbg.rows} | rich logs: ${richCount}${_dbg.err ? ' | err: ' + _dbg.err : ''}`;
-  body.appendChild(dbgEl);
-  // ── END DEBUG ─────────────────────────────────────────────────────────
 
   if (items.length === 0) {
     body.innerHTML = '<div class="empty">No sessions yet.<br>Log a workout to see it here.</div>';
@@ -2144,12 +2145,25 @@ async function loadDailyLog() {
   const today = new Date().toISOString().slice(0, 10);
   document.getElementById('log-date').value = today;
 
-  const { data } = await sbClient
+  let data = null;
+  const { data: d1, error: e1 } = await sbClient
     .from('daily_logs')
     .select('sleep_hours, activity, decline_squats')
     .eq('user_id', authUser.id)
     .eq('date', today)
     .maybeSingle();
+  if (e1) {
+    // decline_squats column likely missing — retry without it
+    const { data: d2 } = await sbClient
+      .from('daily_logs')
+      .select('sleep_hours, activity')
+      .eq('user_id', authUser.id)
+      .eq('date', today)
+      .maybeSingle();
+    data = d2;
+  } else {
+    data = d1;
+  }
 
   document.getElementById('log-sleep').value    = data?.sleep_hours ?? '';
   document.getElementById('log-activity').value = data?.activity    ?? '';
