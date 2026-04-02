@@ -15,7 +15,7 @@ Progression principles:
 - Rehab exercises: be conservative — prioritise pain-free movement over progression
 - Factor in daily logs: poor sleep or heavy activity outside the gym should prompt modest load targets
 - When no history exists, suggest conservative starting weights typical for the exercise
-- Exercise history includes all session types (gym/outdoor/noequip) — use sibling exercise data (e.g. noequip pull-ups inform gym pull-up suggestion) when direct history is absent
+- Exercise history includes all session types (gym/outdoor/noequip) — pull-ups across types are comparable; outdoor deadlift and OHP are machine variants, not directly comparable to barbell gym versions
 
 Session brief: 2–3 sentences, plain text, no markdown, max 80 words. Include today's priority lifts, one technical focus, and any recovery consideration from recent logs.
 
@@ -146,29 +146,27 @@ Deno.serve(async (req: Request) => {
     for (const sess of mergedSessions) {
       const d = new Date(sess.date).toLocaleDateString('en-GB')
       const sessionType = sess.type ?? type
-      // Group sets by exercise, pick the max weight (or max reps for BW/sec)
-      const maxSets: Record<string, any> = {}
+      // Group sets by exercise, build full set list
+      const setsByEx: Record<string, any[]> = {}
       for (const set of (sess.sets as any[]) ?? []) {
-        const exId = set.exercise_id
-        const exUnit = exercises.find(e => e.id === exId)?.unit ?? 'BW'
-        const cur = maxSets[exId]
-        if (!cur) { maxSets[exId] = set; continue }
-        const isBW = !exUnit || exUnit === 'BW' || exUnit === 'sec'
-        if (isBW ? set.reps > cur.reps : (set.weight ?? 0) > (cur.weight ?? 0)) {
-          maxSets[exId] = set
-        }
+        if (!setsByEx[set.exercise_id]) setsByEx[set.exercise_id] = []
+        setsByEx[set.exercise_id].push(set)
       }
-      for (const [exId, set] of Object.entries(maxSets)) {
+      const sessNote = sess.notes ? ` [${sess.notes}]` : ''
+      for (const [exId, sets] of Object.entries(setsByEx)) {
         if (!exerciseHistory[exId]) exerciseHistory[exId] = []
         const exUnit = exercises.find(e => e.id === exId)?.unit ?? 'BW'
-        const w = set.weight_l != null
-          ? `${set.weight_l}/${set.weight_r} kg`
-          : set.weight != null ? `${set.weight} kg` : null
-        const repsStr = exUnit === 'sec' ? `${set.reps} sec` : `${set.reps} reps`
-        const weightStr = w ? `${w} × ` : ''
-        const setNote = set.notes ? ` (${set.notes})` : ''
-        const sessNote = sess.notes ? ` [${sess.notes}]` : ''
-        exerciseHistory[exId].push(`${d}[${sessionType}]: ${weightStr}${repsStr}${setNote}${sessNote}`)
+        const isBW = !exUnit || exUnit === 'BW' || exUnit === 'sec'
+        // Format all sets: "80×5, 80×5, 77.5×4" or "12, 10, 9 reps"
+        const setsStr = sets.map(s => {
+          const w = s.weight_l != null ? `${s.weight_l}/${s.weight_r}` : s.weight != null ? `${s.weight}` : null
+          if (exUnit === 'sec') return `${s.reps}s`
+          if (isBW) return `${s.reps}`
+          return w ? `${w}×${s.reps}` : `${s.reps}`
+        }).join(', ')
+        const unit = isBW ? (exUnit === 'sec' ? '' : ' reps') : ' kg'
+        const setNote = sets.some(s => s.notes) ? ` (${sets.map(s => s.notes).filter(Boolean).join('; ')})` : ''
+        exerciseHistory[exId].push(`${d}[${sessionType}]: ${setsStr}${unit}${setNote}${sessNote}`)
       }
     }
 
@@ -189,7 +187,7 @@ Deno.serve(async (req: Request) => {
 Recent sessions (last 15, all types):
 ${sessionListText}
 ${dailyLogText ? `\nDaily logs (last 30 days):\n${dailyLogText}\n` : ''}
-Exercise history (best set per session, last 2 weeks all types + previous ${type} session; date[type] format — use cross-type data for sibling movements):
+Exercise history (all sets per session shown as "weight×reps, weight×reps"; last 2 weeks all types + previous ${type} session; date[type] — use cross-type data for sibling movements):
 ${exerciseLines}
 
 Generate the session brief and per-exercise suggestions for all listed exercises.`
@@ -206,7 +204,7 @@ Generate the session brief and per-exercise suggestions for all listed exercises
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 1500,
+        max_tokens: 2500,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
       }),

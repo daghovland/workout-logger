@@ -118,6 +118,26 @@
     }
     .daily-log-save:active { background: var(--border); }
 
+    /* ── HOME BRIEF ──────────────────────────── */
+    .home-brief-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-left-width: 3px; border-radius: var(--r);
+      padding: 12px 38px 12px 14px; position: relative; min-height: 44px;
+    }
+    .home-brief-card[data-rec="gym"]     { border-left-color: #c8f542; }
+    .home-brief-card[data-rec="outdoor"] { border-left-color: #ff6b2b; }
+    .home-brief-card[data-rec="home"]    { border-left-color: #5ba4f5; }
+    .home-brief-card[data-rec="rest"]    { border-left-color: var(--muted); }
+    .home-brief-card[data-rec="light"]   { border-left-color: #f5a142; }
+    .home-brief-text { font-size: 13px; line-height: 1.55; color: var(--text); }
+    .home-brief-card.loading .home-brief-text { color: var(--muted); }
+    .home-brief-refresh {
+      position: absolute; top: 8px; right: 8px;
+      background: none; border: none; color: var(--muted);
+      font-size: 15px; cursor: pointer; padding: 4px 6px; border-radius: 6px;
+    }
+    .home-brief-refresh:active { background: var(--border); }
+
     /* ── DECLINE SQUAT WIDGET ────────────────── */
     .dsq-card {
       background: var(--surface); border: 1px solid var(--border);
@@ -491,6 +511,10 @@
       <button id="auth-btn" class="ibtn" onclick="handleAuthBtn()" style="display:none" title="Sign in with Google for cloud sync + AI suggestions">↗</button>
     </div>
   </div>
+  <div class="home-brief-card" id="home-brief-card" style="display:none">
+    <div class="home-brief-text" id="home-brief-text"></div>
+    <button class="home-brief-refresh" onclick="refreshHomeBrief()" title="Refresh">↻</button>
+  </div>
   <button class="scard gym" onclick="startSession('gym')">
     <span class="scard-icon">🏋️</span>
     <h2>Gym</h2>
@@ -689,16 +713,14 @@ const EXERCISES = {
 };
 
 // Exercises that share the same movement across session types
+// Only true siblings share the same movement pattern across session types.
+// Outdoor deadlift (machine) and OHP (seated machine) are NOT siblings of
+// barbell gym versions — different movement, not comparable for progression.
 const SIBLING_EXERCISES = {
   pullups:   ['pu_o', 'ne_pullup'],
   pu_o:      ['pullups', 'ne_pullup'],
   ne_pullup: ['pullups', 'pu_o'],
-  deadlift:  ['dead_o'],
-  dead_o:    ['deadlift'],
-  ohp:       ['ohp_o'],
-  ohp_o:     ['ohp'],
-  step_ups:  ['ne_stepup'],
-  ne_stepup: ['step_ups'],
+  // step_ups (BB) and ne_stepup (BW) differ too much in load to cross-reference
 };
 
 // Return the set with the highest weight (or most reps for BW/sec exercises)
@@ -849,13 +871,26 @@ function dsqLog() {
   const newCount = count + 1;
   localStorage.setItem(dsqKey(), newCount);
   renderDsq(newCount === DSQ_TARGET); // pass true to trigger celebration
+  dsqSyncToSupabase(new Date().toISOString().slice(0, 10), newCount);
 }
 
 function dsqUndo() {
   const count = dsqGetCount();
   if (count <= 0) return;
-  localStorage.setItem(dsqKey(), count - 1);
+  const newCount = count - 1;
+  localStorage.setItem(dsqKey(), newCount);
   renderDsq(false);
+  dsqSyncToSupabase(new Date().toISOString().slice(0, 10), newCount);
+}
+
+async function dsqSyncToSupabase(date, count) {
+  if (!sbClient || !authUser) return;
+  try {
+    await sbClient.from('daily_logs').upsert(
+      { user_id: authUser.id, date, decline_squats: count },
+      { onConflict: 'user_id,date' }
+    );
+  } catch {}
 }
 
 function renderDsq(celebrate) {
@@ -899,9 +934,17 @@ function buildDsqHistItem(data) {
   return el;
 }
 
-function dsqDeleteEntry(date) {
+async function dsqDeleteEntry(date) {
   if (!confirm('Delete decline squat entry for this day?')) return;
   localStorage.removeItem(dsqKey(date));
+  if (sbClient && authUser) {
+    try {
+      await sbClient.from('daily_logs').upsert(
+        { user_id: authUser.id, date, decline_squats: 0 },
+        { onConflict: 'user_id,date' }
+      );
+    } catch {}
+  }
   showHistory();
 }
 
@@ -1477,28 +1520,38 @@ async function showHistory() {
 
   // Fetch daily logs if signed in
   let dailyLogs = [];
+  let remoteDsqByDate = {};
   if (sbClient && authUser) {
     const { data } = await sbClient
       .from('daily_logs')
-      .select('id, date, sleep_hours, activity')
+      .select('id, date, sleep_hours, activity, decline_squats')
       .eq('user_id', authUser.id)
       .order('date', { ascending: false })
       .limit(60);
-    dailyLogs = data ?? [];
+    dailyLogs = (data ?? []).map(l => { const { decline_squats, ...rest } = l; return rest; });
+    for (const l of data ?? []) {
+      if (l.decline_squats != null) remoteDsqByDate[l.date] = l.decline_squats;
+    }
   }
 
   // Rich daily logs stored in IndexedDB (imported)
   const richLogs = S.sessions.filter(s => s.type === 'daily_log');
 
-  // Decline squat entries from localStorage
-  const dsqItems = [];
+  // Decline squat entries: merge localStorage + Supabase (take max, dedup by date)
+  const dsqByDate = {};
   for (const key of Object.keys(localStorage)) {
     if (/^dsq-\d{4}-\d{2}-\d{2}$/.test(key)) {
       const date = key.slice(4);
       const count = dsqGetCount(date);
-      if (count > 0) dsqItems.push({ kind: 'dsq', date, data: { date, count } });
+      if (count > 0) dsqByDate[date] = count;
     }
   }
+  for (const [date, remoteCount] of Object.entries(remoteDsqByDate)) {
+    dsqByDate[date] = Math.max(dsqByDate[date] ?? 0, remoteCount);
+  }
+  const dsqItems = Object.entries(dsqByDate)
+    .filter(([, count]) => count > 0)
+    .map(([date, count]) => ({ kind: 'dsq', date, data: { date, count } }));
 
   // Merge all entry types sorted by date descending
   const items = [
@@ -1864,6 +1917,7 @@ function initAuth() {
       // Sync on sign-in or when a refreshed token is available
       if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
         syncPendingSessions();
+        fetchHomeBrief();         // daily training recommendation
         prefetchCoach('gym');     // warm cache so session start is instant
         prefetchCoach('outdoor');
         prefetchCoach('noequip');
@@ -2073,13 +2127,26 @@ async function loadDailyLog() {
 
   const { data } = await sbClient
     .from('daily_logs')
-    .select('sleep_hours, activity')
+    .select('sleep_hours, activity, decline_squats')
     .eq('user_id', authUser.id)
     .eq('date', today)
     .maybeSingle();
 
   document.getElementById('log-sleep').value    = data?.sleep_hours ?? '';
   document.getElementById('log-activity').value = data?.activity    ?? '';
+
+  // Sync DSQ count from Supabase (cross-device source of truth)
+  if (data?.decline_squats != null) {
+    const remoteCount = data.decline_squats;
+    const localCount = dsqGetCount();
+    // Take whichever is higher — handles the case where local logs happened offline
+    const merged = Math.max(remoteCount, localCount);
+    if (merged !== localCount) {
+      localStorage.setItem(dsqKey(), String(merged));
+      renderDsq(false);
+    }
+    if (merged !== remoteCount) dsqSyncToSupabase(today, merged); // push merged back
+  }
 }
 
 async function saveDailyLog() {
@@ -2258,6 +2325,74 @@ function buildExMeta(ex, lastVal) {
   }
 
   return lastText ?? 'No previous data';
+}
+
+// ── HOME BRIEF (daily training recommendation, cached per day) ───────────
+
+const HOME_BRIEF_KEY = 'home-brief-';
+
+function homeBriefCacheKey() {
+  const d = new Date();
+  return HOME_BRIEF_KEY + `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function getCachedHomeBrief() {
+  try { return JSON.parse(localStorage.getItem(homeBriefCacheKey()) ?? 'null'); } catch { return null; }
+}
+
+function setCachedHomeBrief(data) {
+  const key = homeBriefCacheKey();
+  localStorage.setItem(key, JSON.stringify(data));
+  for (const k of Object.keys(localStorage)) {
+    if (k.startsWith(HOME_BRIEF_KEY) && k !== key) localStorage.removeItem(k);
+  }
+}
+
+function applyHomeBrief(data) {
+  const card = document.getElementById('home-brief-card');
+  const text = document.getElementById('home-brief-text');
+  if (!card || !text || !data?.message) { if (card) card.style.display = 'none'; return; }
+  text.textContent = data.message;
+  card.className = 'home-brief-card';
+  if (data.recommendation) card.dataset.rec = data.recommendation;
+  card.style.display = '';
+}
+
+async function fetchHomeBrief(force) {
+  if (!sbClient || !authUser) return;
+  if (!force) {
+    const cached = getCachedHomeBrief();
+    if (cached) { applyHomeBrief(cached); return; }
+  }
+  const card = document.getElementById('home-brief-card');
+  const text = document.getElementById('home-brief-text');
+  if (card && text) { card.className = 'home-brief-card loading'; text.textContent = '…'; card.style.display = ''; }
+  try {
+    const { data: { session } } = await sbClient.auth.getSession();
+    const token = session?.access_token;
+    if (!token) return;
+    const cutoff = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+    const richLogs = (S.sessions ?? [])
+      .filter(s => s.type === 'daily_log' && s.date >= cutoff)
+      .map(l => ({ date: l.date, notes: l.notes, activity: l.activity }));
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/home-brief`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rich_logs: richLogs }),
+    });
+    if (!resp.ok) throw new Error(`${resp.status}`);
+    const data = await resp.json();
+    if (!data.error) { setCachedHomeBrief(data); applyHomeBrief(data); }
+    else if (card) card.style.display = 'none';
+  } catch (e) {
+    console.warn('fetchHomeBrief error:', e);
+    if (card) card.style.display = 'none';
+  }
+}
+
+async function refreshHomeBrief() {
+  localStorage.removeItem(homeBriefCacheKey());
+  await fetchHomeBrief(true);
 }
 
 // ── COACH (session brief + exercise suggestions, cached per day) ──────────
