@@ -1937,10 +1937,8 @@ function initAuth() {
       // Sync on sign-in or when a refreshed token is available
       if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
         syncPendingSessions();
-        fetchHomeBrief();         // daily training recommendation
-        prefetchCoach('gym');     // warm cache so session start is instant
-        prefetchCoach('outdoor');
-        prefetchCoach('noequip');
+        fetchHomeBrief();      // daily training recommendation
+        prefetchCoach('gym'); // warm gym cache; other types fetched on demand
       }
     } else {
       S.profile = null;

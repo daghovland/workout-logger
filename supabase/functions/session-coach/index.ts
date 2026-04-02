@@ -190,7 +190,7 @@ Generate the session brief and per-exercise suggestions for all listed exercises
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 2500,
+        max_tokens: 1200,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
       }),

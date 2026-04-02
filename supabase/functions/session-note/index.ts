@@ -1,12 +1,14 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { CORS_HEADERS, jsonResp, buildPrompt } from '../_shared/coach-context.ts'
+import { CORS_HEADERS, jsonResp } from '../_shared/coach-context.ts'
 
-const TASK_PROMPT = `Help the athlete log notes about their training session.
+// session-note uses Haiku — it's conversational note-taking, not strategic coaching.
+// No COACH_CONTEXT needed here; keep the system prompt minimal.
+const SYSTEM_PROMPT = `You are a training log assistant. Help the athlete record notes about their session.
 
-The athlete will describe how the session went — feelings, pain, fatigue, technique, anything relevant.
+The athlete describes how the session went — feelings, pain, fatigue, technique, anything relevant.
 Respond with:
-1. A brief, warm receipt (1–3 sentences) acknowledging what was noted and confirming it will inform future suggestions.
-2. A compact, factual note to store on this session for future reference — written in third person, including the key facts: what was reported, which exercises/loads were involved if relevant, and any pattern this might connect to.
+1. A brief, warm receipt (1–3 sentences) acknowledging what was noted.
+2. A compact, factual note to store — third person, key facts, exercises/loads if relevant, any pattern worth tracking.
 
 Respond ONLY with valid JSON, no markdown:
 {"reply": "...", "note": "..."}`
@@ -39,40 +41,53 @@ Deno.serve(async (req: Request) => {
       message: string
     }
 
-    // Fetch user profile for context
+    // Fetch user profile (name + optional ai_context override)
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('display_name, ai_context')
       .eq('user_id', user.id)
       .maybeSingle()
 
-    const systemPrompt = buildPrompt(TASK_PROMPT, profile?.ai_context)
-
     const name = profile?.display_name ?? 'the athlete'
+    const systemPrompt = profile?.ai_context
+      ? `${SYSTEM_PROMPT}\n\nAthlete context: ${profile.ai_context}`
+      : SYSTEM_PROMPT
 
-    // Fetch notes from recent sessions for pattern context
-    const { data: recentSessions } = await supabase
-      .from('sessions')
-      .select('date, type, notes')
-      .not('notes', 'is', null)
-      .order('date', { ascending: false })
-      .limit(10)
+    // Only fetch recent session notes on the first message — no need to repeat
+    // them on every follow-up turn since they're already in the conversation history.
+    const isFirstMessage = !chatHistory?.length
+    let recentNotes = ''
+    if (isFirstMessage) {
+      const { data: recentSessions } = await supabase
+        .from('sessions')
+        .select('date, type, notes')
+        .not('notes', 'is', null)
+        .order('date', { ascending: false })
+        .limit(6)
+      recentNotes = (recentSessions ?? [])
+        .filter(s => s.notes)
+        .map(s => `${new Date(s.date).toLocaleDateString('en-GB')} (${s.type}): ${s.notes}`)
+        .join('\n')
+    }
 
-    const recentNotes = (recentSessions ?? [])
-      .filter(s => s.notes)
-      .map(s => `${new Date(s.date).toLocaleDateString('en-GB')} (${s.type}): ${s.notes}`)
-      .join('\n')
-
-    const contextBlock = [
+    // Build user message — full context only on first turn
+    const contextParts = [
       `Athlete: ${name}`,
-      `\nCurrent session:\n${sessionSummary}`,
-      existingNote ? `\nExisting note on this session:\n${existingNote}` : '',
-      recentNotes ? `\nNotes from recent sessions (for pattern awareness):\n${recentNotes}` : '',
-    ].filter(Boolean).join('\n')
+      `Current session:\n${sessionSummary}`,
+      existingNote ? `Existing note:\n${existingNote}` : '',
+      recentNotes ? `Recent session notes:\n${recentNotes}` : '',
+    ].filter(Boolean)
+
+    const userContent = isFirstMessage
+      ? `${contextParts.join('\n\n')}\n\nMessage: ${message}`
+      : `Note so far: ${existingNote || '(none)'}\n\nMessage: ${message}`
+
+    // Keep only the last 6 messages of history to cap token cost
+    const trimmedHistory = (chatHistory ?? []).slice(-6)
 
     const messages = [
-      ...chatHistory,
-      { role: 'user', content: `${contextBlock}\n\nAthlete's message: ${message}` },
+      ...trimmedHistory,
+      { role: 'user', content: userContent },
     ]
 
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
@@ -86,8 +101,8 @@ Deno.serve(async (req: Request) => {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 400,
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 300,
         system: systemPrompt,
         messages,
       }),
@@ -115,4 +130,3 @@ Deno.serve(async (req: Request) => {
     return jsonResp({ error: String(err) }, 500)
   }
 })
-
