@@ -1,24 +1,14 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { CORS_HEADERS, jsonResp, buildPrompt } from '../_shared/coach-context.ts'
 
-const BASE_SYSTEM_PROMPT = `You are a personal strength coach.
-Write a brief pre-session message (2–3 sentences, plain text, no markdown) for the top of the athlete's session screen.
- Include: (1) what today's session type is and the 2-3 priority lifts, 
- (2) one specific thing to focus on technically today, 
- (3) a one-line note on any recovery consideration based on recent session history 
- (knee, shoulder, days since last session).
-  Tone: direct, like a coach talking to an athlete, not a chatbot. No bullet points. Max 80 words.
-Be specific and direct — avoid generic filler. Use the session history to say something concrete.
- Use all history elements, both Gym and Outdoor, even if the current session is something else.
- `
+const TASK_PROMPT = `Write a brief pre-session message (2–3 sentences, plain text, no markdown) for the top of the athlete's session screen.
+Include: (1) what today's session type is and the 2–3 priority lifts, (2) one specific thing to focus on technically today, (3) a one-line note on any recovery consideration based on recent session history (knee, shoulder, days since last session).
+Tone: direct, like a coach talking to an athlete, not a chatbot. No bullet points. Max 80 words.
+Be specific and direct — avoid generic filler. Use the session history to say something concrete. Use all history elements across all session types.`
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      },
-    })
+    return new Response(null, { headers: CORS_HEADERS })
   }
 
   try {
@@ -47,9 +37,7 @@ Deno.serve(async (req: Request) => {
       .eq('user_id', user.id)
       .maybeSingle()
 
-    const systemPrompt = profile?.ai_context
-      ? `${BASE_SYSTEM_PROMPT}\n\nAthlete context: ${profile.ai_context}`
-      : BASE_SYSTEM_PROMPT
+    const systemPrompt = buildPrompt(TASK_PROMPT, profile?.ai_context)
 
     const name = profile?.display_name ?? 'the athlete'
 
@@ -128,12 +116,3 @@ Write the brief message.`
   }
 })
 
-function jsonResp(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-    },
-  })
-}

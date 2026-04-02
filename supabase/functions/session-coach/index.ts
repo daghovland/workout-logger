@@ -1,21 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { CORS_HEADERS, jsonResp, buildPrompt } from '../_shared/coach-context.ts'
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+const TASK_PROMPT = `Given the athlete's training history, daily logs, and today's session, return a JSON object with a session brief and per-exercise suggestions.
 
-const SYSTEM_PROMPT = `You are a personal strength coach. Given an athlete's training history, daily logs, and today's session, return a JSON object with a session brief and per-exercise suggestions.
-
-Progression principles:
-- Progressive overload: suggest small weight increases (2.5 kg for main barbell lifts, 1.25 kg for dumbbells/cables) when the athlete completed all reps comfortably
-- If the working set looked like a grind (reps at or near the bottom of range), hold weight or suggest a small deload
-- Bodyweight exercises (unit = BW): weight must be null, suggest reps only
-- Time-based exercises (unit = sec): weight must be null, suggest reps as duration in seconds
-- Rehab exercises: be conservative — prioritise pain-free movement over progression
-- Factor in daily logs: poor sleep or heavy activity outside the gym should prompt modest load targets
-- When no history exists, suggest conservative starting weights typical for the exercise
-- Exercise history includes all session types (gym/outdoor/noequip) — pull-ups across types are comparable; outdoor deadlift and OHP are machine variants, not directly comparable to barbell gym versions
+Factor in daily logs: poor sleep or heavy activity outside the gym should prompt modest load targets.
 
 Session brief: 2–3 sentences, plain text, no markdown, max 80 words. Include today's priority lifts, one technical focus, and any recovery consideration from recent logs.
 
@@ -92,9 +80,7 @@ Deno.serve(async (req: Request) => {
     const profile = profileRes.data
     const name = profile?.display_name ?? 'the athlete'
 
-    const systemPrompt = profile?.ai_context
-      ? `${SYSTEM_PROMPT}\n\nAthlete context: ${profile.ai_context}`
-      : SYSTEM_PROMPT
+    const systemPrompt = buildPrompt(TASK_PROMPT, profile?.ai_context)
 
     // Format recent sessions (context for the brief)
     const allSessions = allSessionsRes.data ?? []
@@ -241,11 +227,4 @@ function daysAgo(n: number): string {
   const d = new Date()
   d.setDate(d.getDate() - n)
   return d.toISOString().slice(0, 10)
-}
-
-function jsonResp(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-  })
 }

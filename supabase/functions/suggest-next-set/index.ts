@@ -1,26 +1,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { CORS_HEADERS, jsonResp, buildPrompt } from '../_shared/coach-context.ts'
 
-const BASE_SYSTEM_PROMPT = `You are a personal strength coach.
+const TASK_PROMPT = `Suggest the next working set for a single exercise based on the athlete's recent history.
 
-Progression principles:
-- Progressive overload: suggest small weight increases (2.5 kg for main barbell lifts) when the athlete completed all reps comfortably
-- If the last session weight looked like a grind (reps at or below the bottom of the rep range), hold the same weight or suggest a slight deload
-- Bodyweight exercises (pull-ups): weight should be null, suggest a rep target only
-- When there is no history, suggest a conservative starting weight based on typical beginner/intermediate numbers for the exercise
-- The note added is shown to the gymnast at session, so use short motivational language 
-(For example: Improve from last gym session by hitting 9 reps on 32,5 kilo. Go!)
+The note is shown to the athlete during the session: use short, direct motivational language referencing actual numbers (e.g., "Hit 9 reps at 32.5 kg to beat last week — go!").
 
 Respond ONLY with valid JSON and nothing else — no markdown fence, no explanation outside the JSON:
-{"weight": number_or_null, "reps": number, "note": "one-sentence rationale plus motivation"}`
+{"weight": number_or_null, "reps": number, "note": "one concrete motivational sentence referencing actual numbers"}`
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      },
-    })
+    return new Response(null, { headers: CORS_HEADERS })
   }
 
   try {
@@ -52,9 +42,7 @@ Deno.serve(async (req: Request) => {
       .eq('user_id', user.id)
       .maybeSingle()
 
-    const systemPrompt = profile?.ai_context
-      ? `${BASE_SYSTEM_PROMPT}\n\nAthlete context: ${profile.ai_context}`
-      : BASE_SYSTEM_PROMPT
+    const systemPrompt = buildPrompt(TASK_PROMPT, profile?.ai_context)
 
     const name = profile?.display_name ?? 'the athlete'
 
@@ -155,12 +143,3 @@ Suggest the next working set.`
   }
 })
 
-function jsonResp(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-    },
-  })
-}

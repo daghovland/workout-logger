@@ -1,24 +1,19 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { CORS_HEADERS, jsonResp, buildPrompt } from '../_shared/coach-context.ts'
 
-const SYSTEM_PROMPT = `You are a personal strength coach helping an athlete log notes about their training session.
+const TASK_PROMPT = `Help the athlete log notes about their training session.
 
 The athlete will describe how the session went — feelings, pain, fatigue, technique, anything relevant.
-You will respond with two things:
-
+Respond with:
 1. A brief, warm receipt (1–3 sentences) acknowledging what was noted and confirming it will inform future suggestions.
-2. A compact, factual note to store on this session for future reference. The note should be written in third person, dated, and include the key facts: what was reported, which exercises/loads were involved if relevant, and any pattern this might connect to.
+2. A compact, factual note to store on this session for future reference — written in third person, including the key facts: what was reported, which exercises/loads were involved if relevant, and any pattern this might connect to.
 
 Respond ONLY with valid JSON, no markdown:
 {"reply": "...", "note": "..."}`
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      },
-    })
+    return new Response(null, { headers: CORS_HEADERS })
   }
 
   try {
@@ -51,9 +46,7 @@ Deno.serve(async (req: Request) => {
       .eq('user_id', user.id)
       .maybeSingle()
 
-    const systemPrompt = profile?.ai_context
-      ? `${SYSTEM_PROMPT}\n\nAthlete context: ${profile.ai_context}`
-      : SYSTEM_PROMPT
+    const systemPrompt = buildPrompt(TASK_PROMPT, profile?.ai_context)
 
     const name = profile?.display_name ?? 'the athlete'
 
@@ -123,12 +116,3 @@ Deno.serve(async (req: Request) => {
   }
 })
 
-function jsonResp(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-    },
-  })
-}
