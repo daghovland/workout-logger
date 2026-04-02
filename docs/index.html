@@ -1530,18 +1530,18 @@ async function showHistory() {
         let rows = [];
         const { data, error } = await sbClient
           .from('daily_logs')
-          .select('id, date, sleep_hours, activity, decline_squats')
+          .select('id, date, sleep_hours, activity, decline_squats, notes, rich_activity')
           .eq('user_id', uid)
           .order('date', { ascending: false })
-          .limit(60);
+          .limit(90);
         if (error) {
-          // Column likely missing — retry without it
+          // Some columns may be missing — retry with base columns only
           const { data: data2 } = await sbClient
             .from('daily_logs')
             .select('id, date, sleep_hours, activity')
             .eq('user_id', uid)
             .order('date', { ascending: false })
-            .limit(60);
+            .limit(90);
           rows = data2 ?? [];
         } else {
           rows = data ?? [];
@@ -1554,8 +1554,12 @@ async function showHistory() {
     } catch {}
   }
 
-  // Rich daily logs stored in IndexedDB (imported)
-  const richLogs = S.sessions.filter(s => s.type === 'daily_log');
+  // Rich daily logs from IndexedDB — only used when not signed in to Supabase.
+  // When authenticated, rich logs are synced to Supabase on import and returned
+  // in dailyLogs above, so we skip the IndexedDB copy to avoid duplicates.
+  const richLogs = dailyLogs.length > 0 || (sbClient && authUser)
+    ? []
+    : S.sessions.filter(s => s.type === 'daily_log');
 
   // Decline squat entries: merge localStorage + Supabase (take max, dedup by date)
   const dsqByDate = {};
@@ -1602,19 +1606,35 @@ function buildLogItem(log) {
   const parts = [];
   if (log.sleep_hours != null) parts.push(`${log.sleep_hours}h sleep`);
   if (log.activity) parts.push(log.activity);
-  const summary = parts.join(' · ') || 'No data';
+  const summaryText = log.notes
+    ? (log.notes.slice(0, 80) + (log.notes.length > 80 ? '…' : ''))
+    : (parts.join(' · ') || 'No data');
+
+  // Rich activity section (from imported logs synced to Supabase)
+  let richHtml = '';
+  if (log.notes) {
+    richHtml += `<p style="font-size:13px;line-height:1.6;color:var(--text);margin-bottom:8px">${esc(log.notes)}</p>`;
+  }
+  if (log.rich_activity && typeof log.rich_activity === 'object') {
+    const lines = Object.entries(log.rich_activity)
+      .map(([k, v]) => `<span style="color:var(--muted)">${esc(k)}:</span> ${esc(String(v))}`)
+      .join('<br>');
+    richHtml += `<div style="font-size:12px;line-height:1.7;margin-bottom:8px">${lines}</div>`;
+  }
+  const hasSleepOrActivity = log.sleep_hours != null || log.activity;
 
   el.innerHTML = `
     <div class="hlog-hdr" onclick="this.closest('.hlog').classList.toggle('open')">
       <span class="hlog-badge">LOG</span>
       <div class="hlog-meta">
         <div class="hlog-date">${fmtDate(log.date + 'T12:00:00', true)}</div>
-        <div class="hlog-summary">${esc(summary)}</div>
+        <div class="hlog-summary">${esc(summaryText)}</div>
       </div>
       <span class="hchev">▾</span>
     </div>
     <div class="hlog-detail">
-      <div class="hlog-form">
+      ${richHtml}
+      ${hasSleepOrActivity || !richHtml ? `<div class="hlog-form">
         <div class="hlog-field">
           <label class="hlog-lbl">Sleep</label>
           <input type="number" min="0" max="24" step="0.5" value="${log.sleep_hours ?? ''}"
@@ -1627,11 +1647,13 @@ function buildLogItem(log) {
             class="daily-log-input activity-input" id="hlog-act-${log.id}"
             placeholder="e.g. Ran 20 min, garden work…">
         </div>
-        <div style="display:flex;gap:8px;justify-content:flex-end">
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
           <button class="hist-act" onclick="saveLogItem('${log.id}','${log.date}')">Save</button>
           <button class="hist-act danger" onclick="deleteLogItem('${log.id}')">Delete</button>
         </div>
-      </div>
+      </div>` : `<div style="display:flex;justify-content:flex-end;margin-top:4px">
+        <button class="hist-act danger" onclick="deleteLogItem('${log.id}')">Delete</button>
+      </div>`}
     </div>`;
   return el;
 }
@@ -1767,8 +1789,20 @@ async function importData(input) {
   for (const item of items) {
     if (!item.id || !item.date || !item.type) { skipped++; continue; }
     if (item.type === 'daily_log') {
-      // Always upsert daily logs — merge with any existing entry
+      // Always upsert rich daily logs into IndexedDB
       await dbSave({ ...item, id: Number(item.id) });
+      // Also sync to Supabase so they appear on all devices
+      if (sbClient && authUser) {
+        try {
+          const date = new Date(item.date).toISOString().slice(0, 10);
+          await sbClient.from('daily_logs').upsert({
+            user_id: authUser.id,
+            date,
+            notes: item.notes ?? null,
+            rich_activity: item.activity && typeof item.activity === 'object' ? item.activity : null,
+          }, { onConflict: 'user_id,date' });
+        } catch {}
+      }
       merged++;
       continue;
     }
