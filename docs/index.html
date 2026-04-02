@@ -1518,20 +1518,27 @@ async function showHistory() {
   const body = document.getElementById('hist-body');
   body.innerHTML = '';
 
-  // Fetch daily logs if signed in
+  // Fetch daily logs if signed in — use getSession() to handle auth-not-yet-resolved on mobile
   let dailyLogs = [];
   let remoteDsqByDate = {};
-  if (sbClient && authUser) {
-    const { data } = await sbClient
-      .from('daily_logs')
-      .select('id, date, sleep_hours, activity, decline_squats')
-      .eq('user_id', authUser.id)
-      .order('date', { ascending: false })
-      .limit(60);
-    dailyLogs = (data ?? []).map(l => { const { decline_squats, ...rest } = l; return rest; });
-    for (const l of data ?? []) {
-      if (l.decline_squats != null) remoteDsqByDate[l.date] = l.decline_squats;
-    }
+  if (sbClient) {
+    try {
+      const { data: { session } } = await sbClient.auth.getSession();
+      const uid = authUser?.id ?? session?.user?.id;
+      if (uid) {
+        const { data } = await sbClient
+          .from('daily_logs')
+          .select('id, date, sleep_hours, activity, decline_squats')
+          .eq('user_id', uid)
+          .order('date', { ascending: false })
+          .limit(60);
+        const rows = data ?? [];
+        dailyLogs = rows.map(({ decline_squats: _ds, ...rest }) => rest);
+        for (const l of rows) {
+          if (l.decline_squats != null) remoteDsqByDate[l.date] = l.decline_squats;
+        }
+      }
+    } catch {}
   }
 
   // Rich daily logs stored in IndexedDB (imported)
