@@ -1521,24 +1521,28 @@ async function showHistory() {
   // Fetch daily logs if signed in — use getSession() to handle auth-not-yet-resolved on mobile
   let dailyLogs = [];
   let remoteDsqByDate = {};
+  let _dbg = { uid: null, rows: 0, err: null };
   if (sbClient) {
     try {
       const { data: { session } } = await sbClient.auth.getSession();
       const uid = authUser?.id ?? session?.user?.id;
+      _dbg.uid = uid ?? 'null';
       if (uid) {
-        const { data } = await sbClient
+        const { data, error } = await sbClient
           .from('daily_logs')
           .select('id, date, sleep_hours, activity, decline_squats')
           .eq('user_id', uid)
           .order('date', { ascending: false })
           .limit(60);
+        if (error) _dbg.err = error.message;
         const rows = data ?? [];
+        _dbg.rows = rows.length;
         dailyLogs = rows.map(({ decline_squats: _ds, ...rest }) => rest);
         for (const l of rows) {
           if (l.decline_squats != null) remoteDsqByDate[l.date] = l.decline_squats;
         }
       }
-    } catch {}
+    } catch (e) { _dbg.err = String(e); }
   }
 
   // Rich daily logs stored in IndexedDB (imported)
@@ -1567,6 +1571,14 @@ async function showHistory() {
     ...richLogs.map(l => ({ kind: 'richlog', date: l.date, data: l })),
     ...dsqItems,
   ].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  // ── TEMP DEBUG — remove after diagnosing mobile log issue ──────────────
+  const richCount = richLogs.length;
+  const dbgEl = document.createElement('div');
+  dbgEl.style.cssText = 'font-size:11px;color:#666;padding:6px 14px;border-bottom:1px solid #222;margin-bottom:4px;line-height:1.6';
+  dbgEl.textContent = `[debug] auth uid: ${_dbg.uid ?? '—'} | sb logs: ${_dbg.rows} | rich logs: ${richCount}${_dbg.err ? ' | err: ' + _dbg.err : ''}`;
+  body.appendChild(dbgEl);
+  // ── END DEBUG ─────────────────────────────────────────────────────────
 
   if (items.length === 0) {
     body.innerHTML = '<div class="empty">No sessions yet.<br>Log a workout to see it here.</div>';
