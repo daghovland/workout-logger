@@ -1022,31 +1022,77 @@ function showScreen(id) {
 // ── START SESSION ─────────────────────────────────────────────────────────
 
 async function startSession(type) {
+  // Noequip sessions are open all day — resume today's if one exists
+  if (type === 'noequip') {
+    const today = new Date().toISOString().slice(0, 10);
+    const existing = S.sessions.find(s => s.type === 'noequip' && s.date.slice(0, 10) === today);
+    if (existing) {
+      resumeNoequipSession(existing);
+      return;
+    }
+  }
+
   S.type = type;
   S.session = { id: Date.now(), date: new Date().toISOString(), type, durationMs: 0, exercises: {} };
   S.sessionStart = Date.now();
+  S.priorDurationMs = 0;
   S.openEx = null;
   S.curInputs = {};
   S.checklistState = {};
-  S.lastVals = {};
-  S.suggestions = {};
-
   S.lastVals = buildLastVals(type);
+  S.suggestions = {};
 
   for (const ex of allExercises(type)) {
     S.curInputs[ex.id] = defaultInputs(ex);
-    if (sbClient && authUser) S.suggestions[ex.id] = 'loading'; // will update after render
+    if (sbClient && authUser) S.suggestions[ex.id] = 'loading';
   }
 
   document.getElementById('session-title').textContent = sessionTitle(type);
   document.getElementById('session-timer').textContent = '0:00';
   document.getElementById('finish-timer').textContent = '0:00';
-  document.getElementById('finish-btn').textContent = 'Finish Workout ✓';
+  document.getElementById('finish-btn').textContent =
+    type === 'noequip' ? 'Save for now ✓' : 'Finish Workout ✓';
   document.body.className = type;
   renderSession();
   showScreen('session');
   startTimer();
-  loadCoachForSession(type); // fire-and-forget: brief + all exercise tips, cache-first
+  loadCoachForSession(type);
+}
+
+function resumeNoequipSession(existing) {
+  S.type = 'noequip';
+  S.session = JSON.parse(JSON.stringify(existing)); // deep copy so edits don't mutate S.sessions
+  S.sessionStart = Date.now();
+  S.priorDurationMs = existing.durationMs ?? 0;
+  S.openEx = null;
+  S.curInputs = {};
+  S.checklistState = {};
+  S.lastVals = buildLastVals('noequip');
+  S.suggestions = {};
+
+  for (const ex of allExercises('noequip')) {
+    const sets = existing.exercises?.[ex.id]?.sets ?? [];
+    if (sets.length > 0) {
+      // Pre-fill inputs with the last logged set for this exercise
+      const last = sets[sets.length - 1];
+      S.curInputs[ex.id] = { weight: last.weight ?? null, weightL: last.weightL ?? null, weightR: last.weightR ?? null, reps: last.reps, notes: '' };
+    } else {
+      S.curInputs[ex.id] = defaultInputs(ex);
+      if (sbClient && authUser) S.suggestions[ex.id] = 'loading';
+    }
+  }
+
+  document.getElementById('session-title').textContent = sessionTitle('noequip') + ' (continuing)';
+  document.getElementById('session-timer').textContent = '0:00';
+  document.getElementById('finish-timer').textContent = '0:00';
+  document.getElementById('finish-btn').textContent = 'Save for now ✓';
+  document.body.className = 'noequip';
+  renderSession();
+  showScreen('session');
+  startTimer();
+  // Invalidate today's noequip coach cache so the brief refreshes
+  localStorage.removeItem(`coach-cache-noequip-${new Date().toISOString().slice(0, 10)}`);
+  loadCoachForSession('noequip');
 }
 
 function defaultInputs(ex) {
@@ -1386,6 +1432,27 @@ async function finishSession() {
     cancelSession();
     return;
   }
+
+  // Noequip sessions save directly and return home — no summary screen needed
+  // since the session can be continued later in the day
+  if (S.type === 'noequip') {
+    S.session.durationMs = (S.priorDurationMs ?? 0) + (Date.now() - S.sessionStart);
+    stopTimer();
+    try {
+      await dbSave(S.session);
+      clearDraft();
+      syncSessionToSupabase(S.session);
+      const idx = S.sessions.findIndex(s => s.id === S.session.id);
+      if (idx !== -1) S.sessions[idx] = S.session; else S.sessions.unshift(S.session);
+      await refreshHome();
+      showToast('Home session saved!');
+    } catch { showToast('Save failed'); }
+    S.session = null; S.type = null;
+    document.getElementById('finish-btn').textContent = 'Finish Workout ✓';
+    showScreen('home');
+    return;
+  }
+
   S.session.durationMs = Date.now() - S.sessionStart;
   stopTimer();
   renderSummary();
@@ -1401,7 +1468,12 @@ function cancelSession() {
     return;
   }
   const hasSets = Object.values(S.session?.exercises || {}).some(e => e.sets.length > 0);
-  if (hasSets && !confirm('Cancel session? All logged sets will be lost.')) return;
+  if (S.type === 'noequip') {
+    // Noequip: last saved state is in IndexedDB — just close, unsaved changes are discarded
+    if (hasSets && !confirm('Close? Any sets logged since last save will be lost.')) return;
+  } else {
+    if (hasSets && !confirm('Cancel session? All logged sets will be lost.')) return;
+  }
   stopTimer();
   clearDraft();
   S.session = null;
