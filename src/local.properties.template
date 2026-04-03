@@ -1,0 +1,11 @@
+# Copy this to local.properties and fill in your values.
+# local.properties is NOT committed to git.
+
+sdk.dir=/path/to/your/android/sdk
+
+# Supabase credentials (same as the PWA)
+SUPABASE_URL=https://btvbdevchncetrzjjtqw.supabase.co
+SUPABASE_ANON_KEY=sb_publishable_QKkWv-1bCcOM3ehTcMeSBg_ikjVDc3V
+
+# Samsung Health SDK — see SETUP.md for how to obtain this
+# SAMSUNG_HEALTH_PARTNER_KEY=your_partner_key_here
