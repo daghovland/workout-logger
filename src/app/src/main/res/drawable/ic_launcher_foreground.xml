@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simple barbell icon in the PWA's lime-yellow accent colour -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Left plate -->
+    <path
+        android:fillColor="#C8F542"
+        android:pathData="M18,42 L26,42 L26,66 L18,66 Z" />
+    <!-- Left collar -->
+    <path
+        android:fillColor="#C8F542"
+        android:pathData="M26,46 L34,46 L34,62 L26,62 Z" />
+    <!-- Bar -->
+    <path
+        android:fillColor="#C8F542"
+        android:pathData="M34,51 L74,51 L74,57 L34,57 Z" />
+    <!-- Right collar -->
+    <path
+        android:fillColor="#C8F542"
+        android:pathData="M74,46 L82,46 L82,62 L74,62 Z" />
+    <!-- Right plate -->
+    <path
+        android:fillColor="#C8F542"
+        android:pathData="M82,42 L90,42 L90,66 L82,66 Z" />
+</vector>
