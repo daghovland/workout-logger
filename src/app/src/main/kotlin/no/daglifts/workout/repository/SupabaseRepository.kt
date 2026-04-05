@@ -34,7 +34,7 @@ class SupabaseRepository(private val client: SupabaseClient) {
 
     suspend fun signInWithGoogle() {
         client.auth.signInWith(Google) {
-            redirectUrl = "no.daglifts.workout://login-callback"
+            redirectTo = "no.daglifts.workout://login-callback"
         }
     }
 

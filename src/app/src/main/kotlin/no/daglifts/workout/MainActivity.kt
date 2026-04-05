@@ -21,6 +21,7 @@ import no.daglifts.workout.data.SessionType
 import no.daglifts.workout.ui.HistoryScreen
 import no.daglifts.workout.ui.HomeScreen
 import no.daglifts.workout.ui.SessionScreen
+import no.daglifts.workout.ui.ProfileScreen
 import no.daglifts.workout.ui.SummaryScreen
 import no.daglifts.workout.ui.theme.AccentGym
 import no.daglifts.workout.ui.theme.AccentNoEquip

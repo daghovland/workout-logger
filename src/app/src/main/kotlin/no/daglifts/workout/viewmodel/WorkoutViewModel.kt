@@ -162,9 +162,10 @@ class WorkoutViewModel(
     // ── Samsung Health ─────────────────────────────────────────────────────────
 
     private suspend fun connectSamsungHealth() {
-        val connected = healthRepo.connect()
-        if (connected) {
-            val snapshot = healthRepo.readSnapshot()
+        // New SDK: no explicit connect — getStore() is called per-operation.
+        // Just attempt a snapshot read; it returns empty if permissions aren't granted yet.
+        val snapshot = healthRepo.readSnapshot()
+        if (snapshot != HealthSnapshot()) {
             _home.update { it.copy(healthSnapshot = snapshot) }
         }
     }

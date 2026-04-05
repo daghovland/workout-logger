@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
+    id("kotlin-parcelize")   // required by Samsung Health Data SDK
 }
 
 // Read local.properties for secrets (keeps keys out of source control)
@@ -94,6 +95,6 @@ dependencies {
     // Samsung Health SDK — NOT on Maven Central.
     // Download the AAR from https://developer.samsung.com/health/android/overview.html
     // and place it at app/libs/samsung-health-data-1.5.0.aar
-    // Uncomment the line below once you have the file:
-    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar"))))
+    implementation(fileTree(mapOf("dir" to "libs",
+        "include" to listOf("*.aar"))))
 }
