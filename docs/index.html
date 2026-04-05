@@ -841,6 +841,7 @@ let S = {
   type: null,
   session: null,        // { id, date, type, durationMs, exercises: { [id]: { sets: [...] } } }
   sessionStart: null,
+  priorDurationMs: 0,   // accumulated duration from previous saves (noequip sessions)
   openEx: null,
   lastVals: {},         // { [exId]: last set from previous session }
   curInputs: {},        // { [exId]: { weight?, weightL?, weightR?, reps, notes } }
