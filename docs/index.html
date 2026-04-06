@@ -2600,6 +2600,17 @@ async function sendChatMessage() {
     });
 
     const data = await resp.json();
+
+    // Billing / quota errors come back with a human-readable reply field
+    if (data.error === 'billing' || data.error === 'rate_limit') {
+      if (loadingBubble) {
+        loadingBubble.textContent = data.reply;
+        loadingBubble.removeAttribute('data-loading');
+        loadingBubble.classList.remove('loading');
+        loadingBubble.style.color = 'var(--danger)';
+      }
+      return;
+    }
     if (!resp.ok || data.error) throw new Error(data.error ?? resp.status);
 
     // Show and persist reply

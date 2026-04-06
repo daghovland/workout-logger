@@ -137,16 +137,26 @@ Deno.serve(async (req: Request) => {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 400,
+        model: 'claude-sonnet-4-6',
+        max_tokens: 600,
         system: systemPrompt,
         messages,
       }),
     })
 
     if (!aiResp.ok) {
-      const t = await aiResp.text()
-      throw new Error(`Anthropic ${aiResp.status}: ${t}`)
+      const errBody = await aiResp.json().catch(() => null)
+      const errMsg: string = errBody?.error?.message ?? ''
+      const status = aiResp.status
+
+      // Surface billing/quota errors clearly so the user knows what to do
+      if (status === 402 || errMsg.toLowerCase().includes('credit') || errMsg.toLowerCase().includes('billing')) {
+        return jsonResp({ error: 'billing', reply: 'Out of API credits — top up your Anthropic balance to continue.' }, 402)
+      }
+      if (status === 429) {
+        return jsonResp({ error: 'rate_limit', reply: 'Too many requests — wait a moment and try again.' }, 429)
+      }
+      throw new Error(`Anthropic ${status}: ${errMsg || 'unknown error'}`)
     }
 
     const aiData = await aiResp.json()
