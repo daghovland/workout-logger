@@ -152,13 +152,16 @@ Deno.serve(async (req: Request) => {
     const aiData = await aiResp.json()
     const rawText: string = aiData.content?.[0]?.text?.trim() ?? '{}'
 
+    // Strip markdown code fences the model sometimes adds
+    const cleaned = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+
     let result: { reply: string; update_coach_notes?: string }
     try {
-      result = JSON.parse(rawText)
+      result = JSON.parse(cleaned)
     } catch {
-      const match = rawText.match(/\{[\s\S]*\}/)
-      try { result = match ? JSON.parse(match[0]) : { reply: rawText } }
-      catch { result = { reply: rawText } }
+      const match = cleaned.match(/\{[\s\S]*\}/)
+      try { result = match ? JSON.parse(match[0]) : { reply: cleaned } }
+      catch { result = { reply: cleaned } }
     }
 
     // Persist updated coach notes if the AI proposed changes

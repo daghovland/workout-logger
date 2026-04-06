@@ -203,12 +203,13 @@ Generate the session brief and per-exercise suggestions for all listed exercises
 
     const aiData = await aiResp.json()
     const rawText: string = aiData.content?.[0]?.text?.trim() ?? '{}'
+    const cleaned = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
 
     let result: { brief: string; exercises: Record<string, unknown> }
     try {
-      result = JSON.parse(rawText)
+      result = JSON.parse(cleaned)
     } catch {
-      const match = rawText.match(/\{[\s\S]*\}/)
+      const match = cleaned.match(/\{[\s\S]*\}/)
       try {
         result = match ? JSON.parse(match[0]) : { brief: '', exercises: {} }
       } catch {
