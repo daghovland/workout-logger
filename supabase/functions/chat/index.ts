@@ -104,11 +104,22 @@ Deno.serve(async (req: Request) => {
         return `${d}: ${parts.join(' — ')}`
       }).join('\n')
 
+    // Explicitly flag sessions already done today so the AI can't miss them
+    const todayIso = new Date().toISOString().slice(0, 10)
+    const todaySessions = sessions.filter(s => s.date === todayIso)
+    const todayTrainingLine = todaySessions.length > 0
+      ? `Already trained today: ${todaySessions.map(s => {
+          const dur = s.duration_ms ? ` (${Math.round(s.duration_ms / 60000)}min)` : ''
+          return `${s.type}${dur}`
+        }).join(', ')}`
+      : 'No training recorded in Supabase yet today'
+
     const contextLines = [
       `Today: ${new Date().toLocaleDateString('en-GB')}`,
       `Athlete: ${name}`,
+      todayTrainingLine,
       context_type ? `Current app context: ${context_type}` : null,
-      session_data ? `Active session data:\n${session_data}` : null,
+      session_data ? `Client-side session data (may include unsynced session):\n${session_data}` : null,
       `\nTraining sessions (last 14 days):\n${sessionLines}`,
       logs ? `\nDaily logs (last 30 days):\n${logs}` : null,
     ].filter(Boolean).join('\n')

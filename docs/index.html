@@ -2437,6 +2437,19 @@ function buildSessionSummaryText() {
   return lines.join('\n');
 }
 
+function buildTodaySessionsSummary() {
+  const today = new Date().toISOString().slice(0, 10);
+  const done = (S.sessions ?? []).filter(s =>
+    s.date?.slice(0, 10) === today && s.type !== 'daily_log'
+  );
+  if (!done.length) return null;
+  return done.map(s => {
+    const dur = s.durationMs ? ` (${Math.round(s.durationMs / 60000)}min)` : '';
+    const exCount = Object.keys(s.exercises ?? {}).length;
+    return `${s.type} session${dur}, ${exCount} exercise(s)`;
+  }).join('\n');
+}
+
 function getCurrentChatContext() {
   if (S.session && S.type) {
     const labels = { gym: 'Gym session', outdoor: 'Outdoor session', noequip: 'No-equipment session' };
@@ -2450,7 +2463,14 @@ function getCurrentChatContext() {
   if (screen === 'summary') {
     return { label: 'Post-session', context_type: 'session', session_data: buildSessionSummaryText() };
   }
-  return { label: 'Home', context_type: 'home', session_data: null };
+  // Home screen — include any already-completed sessions today from local store
+  // (may not be synced to Supabase yet)
+  const todaySummary = buildTodaySessionsSummary();
+  return {
+    label: 'Home',
+    context_type: 'home',
+    session_data: todaySummary ? `Already completed today:\n${todaySummary}` : null,
+  };
 }
 
 function toggleChatPanel() {
