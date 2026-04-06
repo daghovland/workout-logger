@@ -152,16 +152,22 @@ Deno.serve(async (req: Request) => {
     const aiData = await aiResp.json()
     const rawText: string = aiData.content?.[0]?.text?.trim() ?? '{}'
 
-    // Strip markdown code fences the model sometimes adds
-    const cleaned = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+    // Strip markdown code fences the model sometimes wraps around JSON
+    const stripped = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+
+    // Fix literal newlines inside JSON string values — a common model mistake
+    // that produces invalid JSON. Replace \n/\r inside quoted strings with \\n/\\r.
+    const cleaned = stripped.replace(/("(?:[^"\\]|\\.)*")/g, (m) =>
+      m.replace(/\n/g, '\\n').replace(/\r/g, '\\r')
+    )
 
     let result: { reply: string; update_coach_notes?: string }
     try {
       result = JSON.parse(cleaned)
     } catch {
-      const match = cleaned.match(/\{[\s\S]*\}/)
-      try { result = match ? JSON.parse(match[0]) : { reply: cleaned } }
-      catch { result = { reply: cleaned } }
+      // Last resort: pull out the reply field with a regex
+      const m = stripped.match(/"reply"\s*:\s*"([\s\S]*?)"(?:\s*[,}])/)
+      result = { reply: m ? m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"') : stripped }
     }
 
     // Persist updated coach notes if the AI proposed changes
