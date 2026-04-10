@@ -120,7 +120,9 @@ private fun HistorySessionCard(
     }
 
     val totalSets = session.exercises.values.sumOf { it.sets.size }
-    val durText = if (session.durationMs > 0) " · ${fmtDuration(session.durationMs / 1000)}" else ""
+    val durText = if (session.durationMs > 0) {
+        " · ${fmtDuration(session.durationMs / 1000)}"
+    } else ""
     val dateText = fmtDateLong(session.date)
 
     Column(
@@ -166,7 +168,7 @@ private fun HistorySessionCard(
                         color = colors.border,
                         shape = RoundedCornerShape(0.dp),
                     )
-                    .padding(horizontal = 14.dp, bottom = 14.dp),
+                    .padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 val exs = ExerciseDefinitions.allForType(

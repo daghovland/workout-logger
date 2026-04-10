@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
@@ -56,6 +57,7 @@ fun HomeScreen(
     onStartSession: (SessionType) -> Unit,
     onShowHistory: () -> Unit,
     onShowProfile: () -> Unit,
+    onShowChat: () -> Unit,
 ) {
     val state by vm.home.collectAsState()
     val colors = LocalWorkoutColors.current
@@ -97,6 +99,9 @@ fun HomeScreen(
                 if (state.isSignedIn) {
                     IconButton(onClick = onShowProfile) {
                         Icon(Icons.Default.Person, contentDescription = "Profile", tint = colors.text)
+                    }
+                    IconButton(onClick = onShowChat) {
+                        Icon(Icons.Default.Chat, contentDescription = "Coach Chat", tint = colors.text)
                     }
                 }
                 IconButton(onClick = onShowHistory) {

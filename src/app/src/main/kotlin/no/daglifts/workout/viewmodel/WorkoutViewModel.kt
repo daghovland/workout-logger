@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import no.daglifts.workout.data.ExerciseDefinitions
 import no.daglifts.workout.data.Exercise
 import no.daglifts.workout.data.SessionType
+import no.daglifts.workout.data.model.ChatMessage
 import no.daglifts.workout.data.model.CoachResponse
 import no.daglifts.workout.data.model.DailyLog
 import no.daglifts.workout.data.model.ExerciseData
@@ -90,6 +91,13 @@ class WorkoutViewModel(
 
     private val _toast = MutableStateFlow<String?>(null)
     val toast: StateFlow<String?> = _toast.asStateFlow()
+
+    // ── Chat ───────────────────────────────────────────────────────────────────
+    private val _chatMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages.asStateFlow()
+
+    private val _chatLoading = MutableStateFlow(false)
+    val chatLoading: StateFlow<Boolean> = _chatLoading.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -335,6 +343,32 @@ class WorkoutViewModel(
     }
 
     fun clearToast() { _toast.value = null }
+
+    fun sendChatMessage(message: String) {
+        if (!_home.value.isSignedIn || message.isBlank()) return
+        val userMsg = ChatMessage(role = "user", content = message)
+        _chatMessages.value = _chatMessages.value + userMsg
+        _chatLoading.value = true
+
+        viewModelScope.launch {
+            val response = supabaseRepo.sendChat(
+                message     = message,
+                history     = _chatMessages.value.dropLast(1), // exclude the msg we just added
+                contextType = "home",
+            )
+            _chatLoading.value = false
+            if (response?.reply != null) {
+                _chatMessages.value = _chatMessages.value +
+                    ChatMessage(role = "assistant", content = response.reply)
+            } else {
+                val err = response?.error ?: "No response"
+                _chatMessages.value = _chatMessages.value +
+                    ChatMessage(role = "assistant", content = "Error: $err")
+            }
+        }
+    }
+
+    fun clearChat() { _chatMessages.value = emptyList() }
 
     // ── Coach / AI ─────────────────────────────────────────────────────────────
 

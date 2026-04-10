@@ -5,11 +5,12 @@ import android.content.Context
 import android.util.Log
 import com.samsung.android.sdk.health.data.HealthDataService
 import com.samsung.android.sdk.health.data.HealthDataStore
-import com.samsung.android.sdk.health.data.data.DataTypes
 import com.samsung.android.sdk.health.data.error.HealthDataException
 import com.samsung.android.sdk.health.data.error.ResolvablePlatformException
 import com.samsung.android.sdk.health.data.permission.AccessType
 import com.samsung.android.sdk.health.data.permission.Permission
+import com.samsung.android.sdk.health.data.request.DataType
+import com.samsung.android.sdk.health.data.request.DataTypes
 import com.samsung.android.sdk.health.data.request.LocalTimeFilter
 import com.samsung.android.sdk.health.data.request.Ordering
 import no.daglifts.workout.data.model.HealthSnapshot
@@ -18,18 +19,22 @@ import java.time.LocalDateTime
 private const val TAG = "SamsungHealthRepo"
 
 /**
- * Reads health metrics from Samsung Health via the Samsung Health Data SDK 1.x.
+ * Reads health metrics from Samsung Health via the Samsung Health Data SDK 1.1.0.
  *
- * Entry point: HealthDataService.getStore(context)
- * No persistent connection — the store is obtained per-call (SDK caches internally).
+ * SDK data model (confirmed from AAR bytecode inspection):
  *
- * Data classes (from com.samsung.android.sdk.health.data.data.entries):
- *   HeartRate    — .heartRate: Float (bpm), .min: Float, .max: Float,
- *                  .startTime: Instant, .endTime: Instant
- *   SleepSession — .duration: Duration (in minutes), .startTime: Instant, .endTime: Instant
+ *   DataTypes (com.samsung.android.sdk.health.data.request.DataTypes) holds singleton
+ *   instances of each DataType subtype:
+ *     DataTypes.HEART_RATE → DataType.HeartRateType  (implements Readable, supports readData)
+ *     DataTypes.SLEEP      → DataType.SleepType       (implements Readable, supports readData)
+ *     DataTypes.STEPS      → DataType.StepsType       (aggregate-only, no readDataRequestBuilder)
  *
- * [SDK] on a line = property name confirmed from the API Reference.
- * TODO comments = property name not yet confirmed; check DataTypes.<X> in the API Reference.
+ *   readData()      → DataResponse<HealthDataPoint>    (heart rate, sleep)
+ *   aggregateData() → DataResponse<AggregatedData<T>> (steps)
+ *
+ *   Field descriptors on companion objects:
+ *     DataType.HeartRateType.HEART_RATE → Field<Float>   (bpm per data point)
+ *     DataType.StepsType.TOTAL          → AggregateOperation<Long, LocalTimeBuilder>
  */
 class SamsungHealthRepository(private val context: Context) {
 
@@ -91,22 +96,28 @@ class SamsungHealthRepository(private val context: Context) {
 
     // ── Individual queries ────────────────────────────────────────────────────
 
+    /**
+     * StepsType is aggregate-only — no readDataRequestBuilder.
+     * DataType.StepsType.TOTAL is AggregateOperation<Long, LocalTimeBuilder>.
+     */
     private suspend fun readSteps(
         store: HealthDataStore,
         start: LocalDateTime,
         end: LocalDateTime,
     ): Long? {
-        val request = DataTypes.STEPS.readDataRequestBuilder
+        val request = DataType.StepsType.TOTAL.requestBuilder
             .setLocalTimeFilter(LocalTimeFilter.of(start, end))
-            .setOrdering(Ordering.ASC)
             .build()
-        val list = store.readData(request).dataList
+        val list = store.aggregateData(request).dataList
         if (list.isEmpty()) return null
-        // TODO: verify property name for the step-count field on DataTypes.STEPS data points
-        // Likely .count (Long) — check the STEPS data class in the API Reference
-        return list.sumOf { it.count }
+        return list.sumOf { (it.value as? Long) ?: 0L }
     }
 
+    /**
+     * Heart rate: readData returns DataResponse<HealthDataPoint>.
+     * The bpm value is in the HEART_RATE field (Field<Float>) on each point.
+     * Taking the minimum as a resting-HR proxy.
+     */
     private suspend fun readRestingHr(
         store: HealthDataStore,
         start: LocalDateTime,
@@ -118,11 +129,16 @@ class SamsungHealthRepository(private val context: Context) {
             .build()
         val list = store.readData(request).dataList
         if (list.isEmpty()) return null
-        // [SDK] HeartRate.heartRate: Float (confirmed from API Reference)
-        // Taking the minimum as a resting-HR proxy (lowest reading of the day)
-        return list.minOf { it.heartRate }.toInt()
+        @Suppress("UNCHECKED_CAST")
+        return list.mapNotNull { point ->
+            try { point.getValue(DataType.HeartRateType.HEART_RATE) as? Float } catch (_: Exception) { null }
+        }.minOrNull()?.toInt()
     }
 
+    /**
+     * Sleep: readData returns DataResponse<HealthDataPoint>.
+     * Duration is derived from HealthDataPoint.startTime / endTime (both Instant, non-null).
+     */
     private suspend fun readSleep(
         store: HealthDataStore,
         start: LocalDateTime,
@@ -134,8 +150,11 @@ class SamsungHealthRepository(private val context: Context) {
             .build()
         val list = store.readData(request).dataList
         if (list.isEmpty()) return null
-        // [SDK] SleepSession.duration: Duration, in minutes (confirmed from API Reference)
-        val totalMinutes = list.sumOf { it.duration.toMinutes() }
+        val totalMinutes = list.sumOf { point ->
+            java.time.Duration.between(point.startTime, point.endTime)
+                .toMinutes()
+                .coerceAtLeast(0)
+        }
         return if (totalMinutes > 0) totalMinutes / 60.0 else null
     }
 }

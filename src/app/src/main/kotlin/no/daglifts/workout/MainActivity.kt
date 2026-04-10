@@ -18,6 +18,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import no.daglifts.workout.data.SessionType
+import no.daglifts.workout.ui.ChatScreen
 import no.daglifts.workout.ui.HistoryScreen
 import no.daglifts.workout.ui.HomeScreen
 import no.daglifts.workout.ui.SessionScreen
@@ -120,6 +121,7 @@ fun WorkoutApp(vm: WorkoutViewModel) {
                         },
                         onShowHistory  = { navController.navigate("history") },
                         onShowProfile  = { navController.navigate("profile") },
+                        onShowChat     = { navController.navigate("chat") },
                     )
                 }
                 composable("session") {
@@ -150,6 +152,9 @@ fun WorkoutApp(vm: WorkoutViewModel) {
                 }
                 composable("profile") {
                     ProfileScreen(vm = vm, onBack = { navController.popBackStack() })
+                }
+                composable("chat") {
+                    ChatScreen(vm = vm, onBack = { navController.popBackStack() })
                 }
             }
         }

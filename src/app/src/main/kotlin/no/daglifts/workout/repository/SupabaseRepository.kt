@@ -16,6 +16,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
+import no.daglifts.workout.data.model.ChatMessage
+import no.daglifts.workout.data.model.ChatResponse
 import no.daglifts.workout.data.model.CoachResponse
 import no.daglifts.workout.data.model.HomeBriefResponse
 import no.daglifts.workout.data.model.Session
@@ -33,9 +35,7 @@ class SupabaseRepository(private val client: SupabaseClient) {
     // ── Auth ──────────────────────────────────────────────────────────────────
 
     suspend fun signInWithGoogle() {
-        client.auth.signInWith(Google) {
-            redirectTo = "no.daglifts.workout://login-callback"
-        }
+        client.auth.signInWith(Google)
     }
 
     suspend fun signOut() = client.auth.signOut()
@@ -194,6 +194,28 @@ class SupabaseRepository(private val client: SupabaseClient) {
         }
     }
 
+    suspend fun sendChat(
+        message: String,
+        history: List<ChatMessage>,
+        contextType: String? = null,
+        sessionData: String? = null,
+    ): ChatResponse? {
+        return try {
+            val body = buildJsonObject {
+                put("message", message)
+                if (history.isNotEmpty()) {
+                    put("chat_history", Json.encodeToJsonElement(history))
+                }
+                contextType?.let { put("context_type", it) }
+                sessionData?.let { put("session_data", it) }
+            }
+            client.functions.invoke("chat", body = body).body<ChatResponse>()
+        } catch (e: Exception) {
+            Log.e(TAG, "sendChat failed", e)
+            null
+        }
+    }
+
     suspend fun fetchHomeBrief(richLogs: List<Map<String, String>>): HomeBriefResponse? {
         return try {
             val body = buildJsonObject {
@@ -210,7 +232,7 @@ class SupabaseRepository(private val client: SupabaseClient) {
 
     @Serializable private data class RemoteSession(val id: Long)
 
-    @Serializable private data class RemoteSessionFull(
+    @Serializable internal data class RemoteSessionFull(
         val id: Long,
         val localId: Long,
         val type: String,
@@ -219,7 +241,7 @@ class SupabaseRepository(private val client: SupabaseClient) {
         val notes: String? = null,
     )
 
-    @Serializable private data class RemoteSet(
+    @Serializable internal data class RemoteSet(
         val exerciseId: String,
         val setIndex: Int,
         val weight: Double? = null,

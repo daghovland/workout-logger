@@ -1,5 +1,6 @@
 package no.daglifts.workout.data.model
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
@@ -89,6 +90,25 @@ data class CoachResponse(
 data class HomeBriefResponse(
     val message: String? = null,
     val recommendation: String? = null,  // "gym" | "outdoor" | "home" | "rest" | "light"
+    val error: String? = null,
+)
+
+/**
+ * A single message in the coach chat conversation.
+ */
+@Serializable
+data class ChatMessage(
+    val role: String,     // "user" or "assistant"
+    val content: String,
+)
+
+/**
+ * Response from the chat edge function.
+ */
+@Serializable
+data class ChatResponse(
+    val reply: String? = null,
+    @SerialName("updated_coach_notes") val updatedCoachNotes: String? = null,
     val error: String? = null,
 )
 
