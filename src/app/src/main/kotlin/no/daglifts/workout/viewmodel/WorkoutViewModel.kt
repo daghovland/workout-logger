@@ -198,9 +198,19 @@ class WorkoutViewModel(
         if (signedIn) viewModelScope.launch { onSignedIn() }
     }
 
+    /** Called by MainActivity after handleDeeplinks() imports the session. */
+    fun onOAuthSessionImported() {
+        viewModelScope.launch {
+            val user = supabaseRepo.auth.currentUserOrNull()
+            _home.update { it.copy(isSignedIn = user != null) }
+            if (user != null) onSignedIn()
+        }
+    }
+
     private suspend fun onSignedIn() {
         syncPending()
         refreshHomeBrief()
+        loadChatHistoryFromSupabase()
         prefetchCoach(SessionType.GYM)
         prefetchCoach(SessionType.OUTDOOR)
         prefetchCoach(SessionType.NOEQUIP)
@@ -344,22 +354,31 @@ class WorkoutViewModel(
 
     fun clearToast() { _toast.value = null }
 
+    private suspend fun loadChatHistoryFromSupabase() {
+        val history = supabaseRepo.loadChatHistory()
+        if (history.isNotEmpty()) _chatMessages.value = history
+    }
+
     fun sendChatMessage(message: String) {
         if (!_home.value.isSignedIn || message.isBlank()) return
         val userMsg = ChatMessage(role = "user", content = message)
-        _chatMessages.value = _chatMessages.value + userMsg
+        val historyBeforeSend = _chatMessages.value
+        _chatMessages.value = historyBeforeSend + userMsg
         _chatLoading.value = true
 
         viewModelScope.launch {
+            supabaseRepo.saveChatMessage("user", message, "general")
+
             val response = supabaseRepo.sendChat(
                 message     = message,
-                history     = _chatMessages.value.dropLast(1), // exclude the msg we just added
-                contextType = "home",
+                history     = historyBeforeSend,
+                contextType = "general",
             )
             _chatLoading.value = false
             if (response?.reply != null) {
                 _chatMessages.value = _chatMessages.value +
                     ChatMessage(role = "assistant", content = response.reply)
+                supabaseRepo.saveChatMessage("assistant", response.reply, "general")
             } else {
                 val err = response?.error ?: "No response"
                 _chatMessages.value = _chatMessages.value +

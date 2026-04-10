@@ -26,7 +26,10 @@ class WorkoutApp : Application() {
             supabaseUrl    = BuildConfig.SUPABASE_URL,
             supabaseKey    = BuildConfig.SUPABASE_ANON_KEY,
         ) {
-            install(Auth)
+            install(Auth) {
+                scheme = "no.daglifts.workout"
+                host   = "login-callback"
+            }
             install(Postgrest)
             install(Functions)
         }

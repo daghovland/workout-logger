@@ -2,6 +2,7 @@ package no.daglifts.workout
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import io.github.jan.supabase.auth.handleDeeplinks
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -58,10 +59,10 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        intent.data?.let { uri ->
-            if (uri.scheme == "no.daglifts.workout") {
-                vm.onAuthStateChanged(true)
-            }
+        // Let the Supabase SDK extract the JWT from the OAuth redirect URL.
+        // handleDeeplinks matches on Auth config scheme/host and handles PKCE/implicit.
+        (application as WorkoutApp).supabaseClient.handleDeeplinks(intent) {
+            vm.onOAuthSessionImported()
         }
     }
 }

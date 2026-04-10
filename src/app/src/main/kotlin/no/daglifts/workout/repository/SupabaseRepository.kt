@@ -35,7 +35,7 @@ class SupabaseRepository(private val client: SupabaseClient) {
     // ── Auth ──────────────────────────────────────────────────────────────────
 
     suspend fun signInWithGoogle() {
-        client.auth.signInWith(Google)
+        client.auth.signInWith(Google, redirectUrl = "no.daglifts.workout://login-callback")
     }
 
     suspend fun signOut() = client.auth.signOut()
@@ -68,10 +68,12 @@ class SupabaseRepository(private val client: SupabaseClient) {
             }
 
             val rows = session.exercises.flatMap { (exId, exData) ->
+                val exName = no.daglifts.workout.data.ExerciseDefinitions.findById(exId)?.name ?: exId
                 exData.sets.mapIndexed { idx, set ->
                     mapOf(
                         "session_id"    to dbSession.id,
                         "exercise_id"   to exId,
+                        "exercise_name" to exName,
                         "set_index"     to idx,
                         "weight"        to set.weight,
                         "weight_l"      to set.weightL,
@@ -191,6 +193,37 @@ class SupabaseRepository(private val client: SupabaseClient) {
         } catch (e: Exception) {
             Log.e(TAG, "fetchCoach failed", e)
             null
+        }
+    }
+
+    suspend fun loadChatHistory(limit: Int = 50): List<ChatMessage> {
+        val user = client.auth.currentUserOrNull() ?: return emptyList()
+        return try {
+            client.from("chat_messages")
+                .select(columns = Columns.list("role", "content")) {
+                    filter { eq("user_id", user.id) }
+                    order("created_at", Order.ASCENDING)
+                    limit(limit.toLong())
+                }.decodeList()
+        } catch (e: Exception) {
+            Log.e(TAG, "loadChatHistory failed", e)
+            emptyList()
+        }
+    }
+
+    suspend fun saveChatMessage(role: String, content: String, contextType: String = "general") {
+        val user = client.auth.currentUserOrNull() ?: return
+        try {
+            client.from("chat_messages").insert(
+                mapOf(
+                    "user_id"      to user.id,
+                    "role"         to role,
+                    "content"      to content,
+                    "context_type" to contextType,
+                )
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "saveChatMessage failed", e)
         }
     }
 
