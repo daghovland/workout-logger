@@ -2112,6 +2112,7 @@ function initAuth() {
         loadChatHistory();
       }
     } else {
+      try { localStorage.removeItem(chatLocalKey()); } catch {}
       S.profile = null;
       S.chatMessages = [];
       S.coachNotes = null;
@@ -2484,7 +2485,6 @@ function toggleChatPanel() {
   fab.classList.toggle('panel-open', S.chatPanelOpen);
   if (S.chatPanelOpen) {
     updateChatContextLabel();
-    renderChatPanel();
     setTimeout(() => document.getElementById('chat-panel-input')?.focus(), 300);
   }
 }
@@ -2495,16 +2495,36 @@ function updateChatContextLabel() {
   el.textContent = getCurrentChatContext().label;
 }
 
+function chatLocalKey() { return `chat-msgs-${authUser?.id ?? 'anon'}`; }
+
+function saveChatMessagesLocal() {
+  try { localStorage.setItem(chatLocalKey(), JSON.stringify(S.chatMessages.slice(-100))); } catch {}
+}
+
+function loadChatMessagesLocal() {
+  try { return JSON.parse(localStorage.getItem(chatLocalKey()) || '[]'); } catch { return []; }
+}
+
 async function loadChatHistory() {
   if (!sbClient || !authUser) return;
+
+  // Show locally-cached messages immediately so the panel isn't blank on reload
+  const local = loadChatMessagesLocal();
+  if (local.length > 0 && S.chatMessages.length === 0) {
+    S.chatMessages = local;
+    renderChatPanel();
+  }
+
   try {
-    const { data } = await sbClient
+    const { data, error } = await sbClient
       .from('chat_messages')
       .select('id, role, content, context_type, created_at')
       .eq('user_id', authUser.id)
       .order('created_at', { ascending: true })
-      .limit(50);
+      .limit(100);
+    if (error) { console.error('loadChatHistory error:', error); return; }
     S.chatMessages = data ?? [];
+    saveChatMessagesLocal();
     renderChatPanel();
   } catch (e) {
     console.warn('loadChatHistory:', e);
@@ -2541,6 +2561,7 @@ function renderChatPanel() {
 function addChatMessage(msg) {
   if (!msg.created_at) msg.created_at = new Date().toISOString();
   S.chatMessages.push(msg);
+  saveChatMessagesLocal();
   const wrap = document.getElementById('chat-panel-msgs');
   if (!wrap) return;
   // Remove "no messages" placeholder
@@ -2568,14 +2589,19 @@ function appendLoadingBubble() {
 async function saveChatMessageToSupabase(role, content, context_type) {
   if (!sbClient || !authUser) return null;
   try {
-    const { data } = await sbClient
+    const { data, error } = await sbClient
       .from('chat_messages')
       .insert({ user_id: authUser.id, role, content, context_type })
       .select('id, role, content, context_type, created_at')
       .single();
+    if (error) {
+      console.error('saveChatMessage error:', error);
+      showToast(`Chat save failed: ${error.message}`);
+      return null;
+    }
     return data;
   } catch (e) {
-    console.warn('saveChatMessage:', e);
+    console.error('saveChatMessage exception:', e);
     return null;
   }
 }
@@ -2646,6 +2672,7 @@ async function sendChatMessage() {
     const savedReply = await saveChatMessageToSupabase('assistant', data.reply, context_type);
     if (savedReply) S.chatMessages.push(savedReply);
     else S.chatMessages.push({ role: 'assistant', content: data.reply, context_type, created_at: new Date().toISOString() });
+    saveChatMessagesLocal();
 
     // Update coach notes if AI proposed changes
     if (data.updated_coach_notes) {
