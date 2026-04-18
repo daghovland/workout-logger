@@ -2102,11 +2102,14 @@ function initAuth() {
       loadProfile();
       loadDailyLog();
       document.getElementById('chat-fab').style.display = '';
-      // Sync on sign-in or when a refreshed token is available
+      // Sync on sign-in/restore; TOKEN_REFRESHED does not re-load chat to avoid
+      // overwriting in-memory messages that haven't been persisted yet.
       if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
         syncPendingSessions();
-        loadChatHistory();
         prefetchCoach('gym'); // warm gym cache; other types fetched on demand
+      }
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        loadChatHistory();
       }
     } else {
       S.profile = null;
@@ -2481,6 +2484,7 @@ function toggleChatPanel() {
   fab.classList.toggle('panel-open', S.chatPanelOpen);
   if (S.chatPanelOpen) {
     updateChatContextLabel();
+    renderChatPanel();
     setTimeout(() => document.getElementById('chat-panel-input')?.focus(), 300);
   }
 }
