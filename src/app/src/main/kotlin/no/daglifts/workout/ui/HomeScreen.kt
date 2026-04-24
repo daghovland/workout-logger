@@ -96,10 +96,10 @@ fun HomeScreen(
                             .background(AccentGym)
                     )
                 }
+                IconButton(onClick = onShowProfile) {
+                    Icon(Icons.Default.Person, contentDescription = "Profile", tint = colors.text)
+                }
                 if (state.isSignedIn) {
-                    IconButton(onClick = onShowProfile) {
-                        Icon(Icons.Default.Person, contentDescription = "Profile", tint = colors.text)
-                    }
                     IconButton(onClick = onShowChat) {
                         Icon(Icons.Default.Chat, contentDescription = "Coach Chat", tint = colors.text)
                     }

@@ -7,5 +7,11 @@ sdk.dir=/path/to/your/android/sdk
 SUPABASE_URL=https://btvbdevchncetrzjjtqw.supabase.co
 SUPABASE_ANON_KEY=sb_publishable_QKkWv-1bCcOM3ehTcMeSBg_ikjVDc3V
 
+# Release signing (for Google Play)
+KEYSTORE_PATH=/path/to/daglifts-release.keystore
+KEYSTORE_PASSWORD=your_keystore_password
+KEY_ALIAS=daglifts
+KEY_PASSWORD=your_key_password
+
 # Samsung Health SDK — see SETUP.md for how to obtain this
 # SAMSUNG_HEALTH_PARTNER_KEY=your_partner_key_here

@@ -19,12 +19,21 @@ android {
     namespace = "no.daglifts.workout"
     compileSdk = 35
 
+    signingConfigs {
+        create("release") {
+            storeFile = file(localProps["KEYSTORE_PATH"] as String)
+            storePassword = localProps["KEYSTORE_PASSWORD"] as String
+            keyAlias = localProps["KEY_ALIAS"] as String
+            keyPassword = localProps["KEY_PASSWORD"] as String
+        }
+    }
+
     defaultConfig {
         applicationId = "no.daglifts.workout"
         minSdk = 29          // Android 10 — Samsung Health SDK 1.1.0 requires 29+
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.1"
 
         // Inject secrets into BuildConfig (accessible as BuildConfig.SUPABASE_URL etc.)
         buildConfigField("String", "SUPABASE_URL",
@@ -37,6 +46,7 @@ android {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

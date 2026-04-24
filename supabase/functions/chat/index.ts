@@ -116,7 +116,7 @@ Deno.serve(async (req: Request) => {
       : 'No training recorded in Supabase yet today'
 
     const contextLines = [
-      `Today: ${now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}, ${now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} UTC`,
+      `Today (server UTC): ${isoDate(now)} (${weekdayName(now.getUTCDay())})`,
       `Athlete: ${name}`,
       todayTrainingLine,
       context_type ? `Current app context: ${context_type}` : null,
@@ -215,3 +215,10 @@ function daysAgo(n: number): string {
   d.setDate(d.getDate() - n)
   return d.toISOString().slice(0, 10)
 }
+
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+
+const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+function weekdayName(day: number): string { return DAYS[day] ?? '' }

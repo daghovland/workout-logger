@@ -2468,9 +2468,18 @@ function buildTodaySessionsSummary() {
   }).join('\n');
 }
 
-function getCurrentChatContext() {
+function clientDateTimeStr() {
   const now = new Date();
-  const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MONTHS = ['January','February','March','April','May','June','July','August',
+                  'September','October','November','December'];
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  return `${DAYS[now.getDay()]}, ${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}, ${hh}:${mm} (local)`;
+}
+
+function getCurrentChatContext() {
+  const dtStr = clientDateTimeStr();
 
   if (S.session && S.type) {
     const labels = { gym: 'Gym session', outdoor: 'Outdoor session', noequip: 'No-equipment session' };
@@ -2479,7 +2488,7 @@ function getCurrentChatContext() {
     return {
       label: labels[S.type] ?? 'In session',
       context_type: 'session',
-      session_data: `Current time: ${timeStr}\nStatus: ${status}\n\n${buildSessionSummaryText()}`,
+      session_data: `Client date/time: ${dtStr}\nStatus: ${status}\n\n${buildSessionSummaryText()}`,
     };
   }
   const screen = document.querySelector('.screen.active')?.id;
@@ -2487,7 +2496,7 @@ function getCurrentChatContext() {
     return {
       label: 'Post-session',
       context_type: 'session',
-      session_data: `Current time: ${timeStr}\nStatus: POST-WORKOUT REVIEW\n\n${buildSessionSummaryText()}`,
+      session_data: `Client date/time: ${dtStr}\nStatus: POST-WORKOUT REVIEW\n\n${buildSessionSummaryText()}`,
     };
   }
   // Home screen — include any already-completed sessions today from local store
@@ -2495,7 +2504,7 @@ function getCurrentChatContext() {
   return {
     label: 'Home',
     context_type: 'home',
-    session_data: `Current time: ${timeStr}${todaySummary ? `\nAlready completed today:\n${todaySummary}` : ''}`,
+    session_data: `Client date/time: ${dtStr}${todaySummary ? `\nAlready completed today:\n${todaySummary}` : ''}`,
   };
 }
 
