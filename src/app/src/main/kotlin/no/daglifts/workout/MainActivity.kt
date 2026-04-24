@@ -42,13 +42,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Handle deep links for Supabase OAuth redirect
-        // (the intent arrives here after Google sign-in)
-        intent?.data?.let { uri ->
-            if (uri.scheme == "no.daglifts.workout" && uri.host == "login-callback") {
-                // Supabase SDK picks up the session from the URL automatically
-                // via the auth state change listener wired in WorkoutViewModel.initAuth()
-            }
+        // Handle OAuth redirect on cold-start (app launched fresh from browser callback).
+        // onNewIntent handles the warm-start case; we need both.
+        (application as WorkoutApp).supabaseClient.handleDeeplinks(intent) {
+            vm.onOAuthSessionImported()
         }
 
         setContent {

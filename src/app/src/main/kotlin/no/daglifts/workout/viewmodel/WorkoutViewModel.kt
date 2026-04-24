@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import io.github.jan.supabase.auth.SessionStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +23,7 @@ import no.daglifts.workout.data.model.ExerciseSet
 import no.daglifts.workout.data.model.ExerciseSuggestion
 import no.daglifts.workout.data.model.HealthSnapshot
 import no.daglifts.workout.data.model.HomeBriefResponse
+import no.daglifts.workout.repository.SupabaseRepository
 import no.daglifts.workout.data.model.Session
 import no.daglifts.workout.data.model.SetInputs
 import no.daglifts.workout.repository.SamsungHealthRepository
@@ -64,6 +66,7 @@ data class HomeUiState(
     val isSignedIn: Boolean = false,
     val healthSnapshot: HealthSnapshot? = null,
     val todayDeclineSquats: Int = 0,
+    val profile: SupabaseRepository.UserProfile? = null,
 )
 
 // ── ViewModel ──────────────────────────────────────────────────────────────────
@@ -100,10 +103,17 @@ class WorkoutViewModel(
     val chatLoading: StateFlow<Boolean> = _chatLoading.asStateFlow()
 
     init {
+        viewModelScope.launch { refreshHome() }
+        viewModelScope.launch { connectSamsungHealth() }
+        // Observe Supabase auth state reactively so isSignedIn stays accurate across
+        // OAuth callbacks, token refreshes, and sign-outs from other devices.
         viewModelScope.launch {
-            refreshHome()
-            connectSamsungHealth()
-            initAuth()
+            supabaseRepo.auth.sessionStatus.collect { status ->
+                val signedIn = status is SessionStatus.Authenticated
+                _home.update { it.copy(isSignedIn = signedIn) }
+                if (signedIn) onSignedIn()
+                else _home.update { it.copy(homeBrief = null) }
+            }
         }
     }
 
@@ -180,40 +190,44 @@ class WorkoutViewModel(
 
     // ── Auth ───────────────────────────────────────────────────────────────────
 
-    private suspend fun initAuth() {
-        val user = supabaseRepo.auth.currentUserOrNull()
-        _home.update { it.copy(isSignedIn = user != null) }
-        if (user != null) {
-            onSignedIn()
-        }
-    }
-
     suspend fun signInWithGoogle() {
         supabaseRepo.signInWithGoogle()
-        // Auth state change handled via handleDeepLink in MainActivity
+        // Session is imported via handleDeeplinks in MainActivity;
+        // sessionStatus flow above picks it up automatically.
     }
 
-    fun onAuthStateChanged(signedIn: Boolean) {
-        _home.update { it.copy(isSignedIn = signedIn) }
-        if (signedIn) viewModelScope.launch { onSignedIn() }
-    }
-
-    /** Called by MainActivity after handleDeeplinks() imports the session. */
+    /** Called by MainActivity after handleDeeplinks() imports the OAuth session. */
     fun onOAuthSessionImported() {
-        viewModelScope.launch {
-            val user = supabaseRepo.auth.currentUserOrNull()
-            _home.update { it.copy(isSignedIn = user != null) }
-            if (user != null) onSignedIn()
-        }
+        // The sessionStatus flow collector handles the state update;
+        // this is a no-op but kept so MainActivity compiles unchanged.
     }
 
     private suspend fun onSignedIn() {
         syncPending()
         refreshHomeBrief()
         loadChatHistoryFromSupabase()
+        loadProfile()
         prefetchCoach(SessionType.GYM)
         prefetchCoach(SessionType.OUTDOOR)
         prefetchCoach(SessionType.NOEQUIP)
+    }
+
+    private suspend fun loadProfile() {
+        val profile = supabaseRepo.fetchProfile()
+        _home.update { it.copy(profile = profile) }
+    }
+
+    fun saveProfile(background: String, goals: String, injuries: String) {
+        viewModelScope.launch {
+            val profile = SupabaseRepository.UserProfile(
+                trainingBackground = background.ifBlank { null },
+                goals = goals.ifBlank { null },
+                injuries = injuries.ifBlank { null },
+            )
+            supabaseRepo.saveProfile(profile)
+            _home.update { it.copy(profile = profile) }
+            _toast.value = "Profile saved"
+        }
     }
 
     suspend fun signOut() {
@@ -366,19 +380,34 @@ class WorkoutViewModel(
         _chatMessages.value = historyBeforeSend + userMsg
         _chatLoading.value = true
 
+        val activeSession = _session.value as? SessionUiState.Active
+        val sessionData = activeSession?.let { s ->
+            val elapsed = (System.currentTimeMillis() - s.startTimeMs) / 60_000
+            val setsLogged = s.session.exercises.values.sumOf { it.sets.size }
+            "Mid-workout (${s.type.name.lowercase()}, ${elapsed}min elapsed, $setsLogged sets logged)"
+        }
+
         viewModelScope.launch {
-            supabaseRepo.saveChatMessage("user", message, "general")
+            supabaseRepo.saveChatMessage("user", message, if (activeSession != null) "session" else "general")
 
             val response = supabaseRepo.sendChat(
                 message     = message,
                 history     = historyBeforeSend,
-                contextType = "general",
+                contextType = if (activeSession != null) "session" else "general",
+                sessionData = sessionData,
             )
             _chatLoading.value = false
             if (response?.reply != null) {
                 _chatMessages.value = _chatMessages.value +
                     ChatMessage(role = "assistant", content = response.reply)
                 supabaseRepo.saveChatMessage("assistant", response.reply, "general")
+                if (response.updatedCoachNotes != null) {
+                    supabaseRepo.saveCoachNotes(response.updatedCoachNotes)
+                    val updated = _home.value.profile?.copy(coachNotes = response.updatedCoachNotes)
+                        ?: SupabaseRepository.UserProfile(coachNotes = response.updatedCoachNotes)
+                    _home.update { it.copy(profile = updated) }
+                    _toast.value = "Coach notes updated"
+                }
             } else {
                 val err = response?.error ?: "No response"
                 _chatMessages.value = _chatMessages.value +

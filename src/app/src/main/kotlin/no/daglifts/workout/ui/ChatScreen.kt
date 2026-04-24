@@ -2,6 +2,7 @@ package no.daglifts.workout.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -24,6 +26,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -127,6 +131,42 @@ fun ChatScreen(
                             strokeWidth = 2.dp,
                         )
                     }
+                }
+            }
+        }
+
+        // Quick-action chips
+        if (homeState.isSignedIn && !loading) {
+            val quickActions = listOf(
+                "Brief me"       to "Give me a quick training brief for today based on my recent sessions and health data.",
+                "Progress"       to "How is my progress looking across my main lifts over the last month?",
+                "Recovery"       to "How is my recovery looking? Should I push hard today or take it easier?",
+                "Session focus"  to "What should I focus on in my next session?",
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                quickActions.forEach { (label, prompt) ->
+                    FilterChip(
+                        selected = false,
+                        onClick = { vm.sendChatMessage(prompt) },
+                        label = { Text(label, fontSize = 12.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor         = colors.surface2,
+                            labelColor             = colors.text,
+                            selectedContainerColor = colors.accent,
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled          = true,
+                            selected         = false,
+                            borderColor      = colors.border,
+                            selectedBorderColor = colors.accent,
+                        ),
+                    )
                 }
             }
         }

@@ -42,6 +42,51 @@ class SupabaseRepository(private val client: SupabaseClient) {
 
     fun currentUser() = client.auth.currentUserOrNull()
 
+    // ── User profile (coaching context + coach notes) ─────────────────────────
+
+    suspend fun fetchProfile(): UserProfile? {
+        val user = client.auth.currentUserOrNull() ?: return null
+        return try {
+            client.from("user_profiles")
+                .select(columns = Columns.list(
+                    "training_background", "goals", "injuries", "coach_notes"
+                )) {
+                    filter { eq("user_id", user.id) }
+                    limit(1)
+                }.decodeList<UserProfile>().firstOrNull()
+        } catch (e: Exception) {
+            Log.e(TAG, "fetchProfile failed", e)
+            null
+        }
+    }
+
+    suspend fun saveProfile(profile: UserProfile) {
+        val user = client.auth.currentUserOrNull() ?: return
+        try {
+            client.from("user_profiles").upsert(
+                mapOf(
+                    "user_id"             to user.id,
+                    "training_background" to profile.trainingBackground,
+                    "goals"               to profile.goals,
+                    "injuries"            to profile.injuries,
+                )
+            ) { onConflict = "user_id" }
+        } catch (e: Exception) {
+            Log.e(TAG, "saveProfile failed", e)
+        }
+    }
+
+    suspend fun saveCoachNotes(notes: String) {
+        val user = client.auth.currentUserOrNull() ?: return
+        try {
+            client.from("user_profiles").upsert(
+                mapOf("user_id" to user.id, "coach_notes" to notes)
+            ) { onConflict = "user_id" }
+        } catch (e: Exception) {
+            Log.e(TAG, "saveCoachNotes failed", e)
+        }
+    }
+
     // ── Session sync ──────────────────────────────────────────────────────────
 
     suspend fun pushSession(session: Session): Boolean {
@@ -262,6 +307,13 @@ class SupabaseRepository(private val client: SupabaseClient) {
     }
 
     // ── Remote DTOs ───────────────────────────────────────────────────────────
+
+    @Serializable data class UserProfile(
+        val trainingBackground: String? = null,
+        val goals: String? = null,
+        val injuries: String? = null,
+        val coachNotes: String? = null,
+    )
 
     @Serializable private data class RemoteSession(val id: Long)
 

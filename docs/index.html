@@ -1161,18 +1161,24 @@ function resumeNoequipSession(existing) {
   loadCoachForSession('noequip');
 }
 
+function snapWeight(val, step) {
+  if (val == null || !step) return val;
+  return Math.round(val / step) * step;
+}
+
 function defaultInputs(ex) {
   const sug = S.suggestions?.[ex.id];
   const sugData = (sug && typeof sug === 'object') ? sug : null;
   const last = S.lastVals[ex.id];
   const pd = S.profile?.exercise_defaults?.[ex.id] ?? {};
   if (ex.asym) {
-    return { weightL: last?.weightL ?? pd.weightL ?? null, weightR: last?.weightR ?? pd.weightR ?? null, reps: sugData?.reps ?? last?.reps ?? pd.reps ?? 5, notes: '' };
+    return { weightL: snapWeight(last?.weightL ?? pd.weightL ?? null, ex.step), weightR: snapWeight(last?.weightR ?? pd.weightR ?? null, ex.step), reps: sugData?.reps ?? last?.reps ?? pd.reps ?? 5, notes: '' };
   }
   if (!ex.unit || ex.unit === 'BW') {
     return { weight: null, reps: sugData?.reps ?? last?.reps ?? pd.reps ?? 5, notes: '' };
   }
-  return { weight: sugData?.weight ?? last?.weight ?? pd.weight ?? null, reps: sugData?.reps ?? last?.reps ?? pd.reps ?? ex.defaultReps ?? 5, notes: '' };
+  const rawWeight = sugData?.weight ?? last?.weight ?? pd.weight ?? null;
+  return { weight: snapWeight(rawWeight, ex.step), reps: sugData?.reps ?? last?.reps ?? pd.reps ?? ex.defaultReps ?? 5, notes: '' };
 }
 
 // ── RENDER SESSION ────────────────────────────────────────────────────────
@@ -1380,8 +1386,11 @@ function toggleNotes(exId) {
 function adj(id, delta) {
   const el = document.getElementById(id);
   if (!el) return;
+  const s = Math.abs(delta) || 1;
   const cur = parseFloat(el.value) || 0;
-  el.value = Math.max(0, Math.round((cur + delta) * 100) / 100);
+  // Snap to step boundary first so repeated presses always land on clean values
+  const snapped = Math.round(cur / s) * s;
+  el.value = Math.max(0, Math.round((snapped + delta) * 1000) / 1000);
 }
 
 function saveInputs(exId) {
