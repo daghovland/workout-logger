@@ -83,6 +83,7 @@ Deno.serve(async (req: Request) => {
 
     // Build context block injected into the system prompt each call so the
     // AI always sees fresh data regardless of how long the chat has run.
+    const now = new Date()
     const sessions = recentSessionsRes.data ?? []
     const sessionLines = sessions.length === 0
       ? 'No sessions in the last 2 weeks.'
@@ -105,7 +106,7 @@ Deno.serve(async (req: Request) => {
       }).join('\n')
 
     // Explicitly flag sessions already done today so the AI can't miss them
-    const todayIso = new Date().toISOString().slice(0, 10)
+    const todayIso = now.toISOString().slice(0, 10)
     const todaySessions = sessions.filter(s => s.date === todayIso)
     const todayTrainingLine = todaySessions.length > 0
       ? `Already trained today: ${todaySessions.map(s => {
@@ -115,7 +116,7 @@ Deno.serve(async (req: Request) => {
       : 'No training recorded in Supabase yet today'
 
     const contextLines = [
-      `Today: ${new Date().toLocaleDateString('en-GB')}`,
+      `Today: ${now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}, ${now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} UTC`,
       `Athlete: ${name}`,
       todayTrainingLine,
       context_type ? `Current app context: ${context_type}` : null,

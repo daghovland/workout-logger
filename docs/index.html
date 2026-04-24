@@ -750,7 +750,7 @@ const EXERCISES = {
       { id: 'ohp',      name: 'OHP',      unit: 'kg',     step: 2.5 },
       { id: 'pullups',  name: 'Pull-ups', unit: 'BW',     step: null },
       { id: 'bb_row',   name: 'BB Row',   unit: 'kg',     step: 2.5 },
-      { id: 'db_bench', name: 'DB Bench', unit: 'kg/arm', step: 2.5 },
+      { id: 'db_bench', name: 'DB Bench', unit: 'kg/arm', step: 1 },
     ],
   },
   outdoor: [
@@ -1343,7 +1343,7 @@ function mkStepper(id, val, step) {
   const s = step || 1;
   return `<div class="stepper">
     <button class="sbtn" onclick="adj('${id}',${-s})">−</button>
-    <input class="sinput" type="number" id="${id}" value="${val ?? ''}" placeholder="${val === null ? 'BW' : ''}" step="${s}">
+    <input class="sinput" type="number" id="${id}" value="${val ?? ''}" placeholder="${val === null ? 'BW' : ''}" step="${s}" inputmode="decimal" onclick="this.select()">
     <button class="sbtn" onclick="adj('${id}',${s})">+</button>
   </div>`;
 }
@@ -2427,16 +2427,30 @@ function showProfile() {
 
 function buildSessionSummaryText() {
   if (!S.session) return '';
-  const exercises = allExercises(S.type).filter(ex => getSets(ex.id).length > 0);
-  const lines = [`Type: ${S.type}`, `Date: ${new Date(S.session.date).toLocaleDateString('en-GB')}`];
-  exercises.forEach(ex => {
+  const allEx = allExercises(S.type);
+  const lines = [
+    `Session type: ${S.type}`,
+    `Session date: ${new Date(S.session.date).toLocaleDateString('en-GB')}`,
+  ];
+  if (S.openEx) {
+    const cur = findEx(S.openEx);
+    if (cur) lines.push(`Currently on: ${cur.name}`);
+  }
+  lines.push('');
+  allEx.forEach(ex => {
     const sets = getSets(ex.id);
-    const setsText = sets.map(s => {
-      if (ex.asym) return `${s.weightL}/${s.weightR}kg × ${s.reps}`;
-      if (s.weight) return `${s.weight}kg × ${s.reps}`;
-      return `${s.reps} reps`;
-    }).join(', ');
-    lines.push(`${ex.name}: ${setsText}`);
+    const isCurrent = ex.id === S.openEx ? ' ← active now' : '';
+    if (sets.length > 0) {
+      const setsText = sets.map((s, i) => {
+        const n = `set ${i + 1}`;
+        if (ex.asym) return `${n}: ${s.weightL}/${s.weightR}kg × ${s.reps}`;
+        if (s.weight != null) return `${n}: ${s.weight}${ex.unit} × ${s.reps}`;
+        return `${n}: ${s.reps} ${ex.unit === 'sec' ? 'sec' : 'reps'}`;
+      }).join('; ');
+      lines.push(`${ex.name}${isCurrent}: ${setsText}`);
+    } else {
+      lines.push(`${ex.name}${isCurrent}: not started`);
+    }
   });
   return lines.join('\n');
 }
@@ -2455,25 +2469,33 @@ function buildTodaySessionsSummary() {
 }
 
 function getCurrentChatContext() {
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
   if (S.session && S.type) {
     const labels = { gym: 'Gym session', outdoor: 'Outdoor session', noequip: 'No-equipment session' };
+    const elapsedMin = S.sessionStart ? Math.round((Date.now() - S.sessionStart) / 60000) : 0;
+    const status = `CURRENTLY MID-WORKOUT — ${elapsedMin} min elapsed. Give specific next-set advice.`;
     return {
       label: labels[S.type] ?? 'In session',
       context_type: 'session',
-      session_data: buildSessionSummaryText(),
+      session_data: `Current time: ${timeStr}\nStatus: ${status}\n\n${buildSessionSummaryText()}`,
     };
   }
   const screen = document.querySelector('.screen.active')?.id;
   if (screen === 'summary') {
-    return { label: 'Post-session', context_type: 'session', session_data: buildSessionSummaryText() };
+    return {
+      label: 'Post-session',
+      context_type: 'session',
+      session_data: `Current time: ${timeStr}\nStatus: POST-WORKOUT REVIEW\n\n${buildSessionSummaryText()}`,
+    };
   }
   // Home screen — include any already-completed sessions today from local store
-  // (may not be synced to Supabase yet)
   const todaySummary = buildTodaySessionsSummary();
   return {
     label: 'Home',
     context_type: 'home',
-    session_data: todaySummary ? `Already completed today:\n${todaySummary}` : null,
+    session_data: `Current time: ${timeStr}${todaySummary ? `\nAlready completed today:\n${todaySummary}` : ''}`,
   };
 }
 
@@ -2520,10 +2542,15 @@ async function loadChatHistory() {
       .from('chat_messages')
       .select('id, role, content, context_type, created_at')
       .eq('user_id', authUser.id)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(100);
     if (error) { console.error('loadChatHistory error:', error); return; }
-    S.chatMessages = data ?? [];
+    // Most-recent-first from Supabase → flip to chronological
+    const serverMsgs = (data ?? []).reverse();
+    // Preserve any messages sent in this session that haven't synced yet (no id)
+    const lastServerTime = serverMsgs.at(-1)?.created_at ?? '';
+    const unsyncedLocal = S.chatMessages.filter(m => !m.id && m.created_at > lastServerTime);
+    S.chatMessages = [...serverMsgs, ...unsyncedLocal];
     saveChatMessagesLocal();
     renderChatPanel();
   } catch (e) {
