@@ -564,13 +564,13 @@
   <button class="scard gym" onclick="startSession('gym')">
     <span class="scard-icon">🏋️</span>
     <h2>Gym</h2>
-    <p>Rehab block + deadlift, OHP, pull-ups, row, DB bench</p>
+    <p>Rehab block + deadlift, OHP, pull-ups/pull-downs, row, DB bench</p>
     <div class="last gym-last" id="gym-last"></div>
   </button>
   <button class="scard outdoor" onclick="startSession('outdoor')">
     <span class="scard-icon">🌤️</span>
     <h2>Outdoor / Street</h2>
-    <p>Squat machine, bench, deadlift, OHP, pull-ups, row</p>
+    <p>Squat machine, bench, deadlift, OHP, pull-ups/pull-downs, row</p>
     <div class="last out-last" id="out-last"></div>
   </button>
   <button class="scard noequip" onclick="startSession('noequip')">
@@ -749,6 +749,7 @@ const EXERCISES = {
       { id: 'deadlift', name: 'Deadlift', unit: 'kg',     step: 2.5 },
       { id: 'ohp',      name: 'OHP',      unit: 'kg',     step: 2.5 },
       { id: 'pullups',  name: 'Pull-ups', unit: 'BW',     step: null },
+      { id: 'pulldown', name: 'Pull-down', unit: 'kg',    step: 2.5 },
       { id: 'bb_row',   name: 'BB Row',   unit: 'kg',     step: 2.5 },
       { id: 'db_bench', name: 'DB Bench', unit: 'kg/arm', step: 1 },
     ],
@@ -759,6 +760,7 @@ const EXERCISES = {
     { id: 'dead_o',  name: 'Deadlift',      unit: 'kg',      step: 2.5 },
     { id: 'ohp_o',   name: 'OHP',           unit: 'kg',      step: 2.5 },
     { id: 'pu_o',    name: 'Pull-ups',      unit: 'BW',      step: null },
+    { id: 'pd_o',    name: 'Pull-down',     unit: 'kg',      step: 2.5 },
     { id: 'row_o',   name: 'Row',           unit: 'kg/side', step: 2.5 },
   ],
   noequip: [
