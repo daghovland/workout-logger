@@ -18,8 +18,8 @@ The app lives entirely in `docs/index.html`. There are no dependencies, no npm, 
 Single-file PWA (`docs/index.html`, ~1043 lines) with:
 
 - **IndexedDB** (`daglifts` db, `sessions` store) for persistent workout history
-- **Service worker** (`docs/sw.js`) for offline support — cache-first for assets, passes Anthropic API calls through
-- **Claude API** (`claude-sonnet-4-20250514`) for AI coaching, called directly from the browser with a user-supplied API key
+- **Service worker** (`docs/sw.js`) for offline support — cache-first for assets
+- **Claude API** (`claude-sonnet-5`) for AI coaching, called server-side from Supabase edge functions (`supabase/functions/chat`, `supabase/functions/session-coach`) — the browser never holds an API key
 
 ### App state (in-memory)
 - `currentMode` — `'gym'` or `'street'`
