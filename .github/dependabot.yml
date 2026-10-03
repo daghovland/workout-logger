@@ -1,0 +1,20 @@
+version: 2
+updates:
+  # Android app (Gradle + version catalog in src/gradle/libs.versions.toml)
+  - package-ecosystem: "gradle"
+    directory: "/src"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      androidx:
+        patterns:
+          - "androidx.*"
+          - "org.jetbrains.kotlin*"
+          - "com.google.devtools.ksp*"
+
+  # Keep any future GitHub Actions workflows up to date
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
