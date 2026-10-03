@@ -5,6 +5,7 @@ import android.content.Context
 import android.util.Log
 import com.samsung.android.sdk.health.data.HealthDataService
 import com.samsung.android.sdk.health.data.HealthDataStore
+import com.samsung.android.sdk.health.data.data.entries.SleepSession
 import com.samsung.android.sdk.health.data.error.HealthDataException
 import com.samsung.android.sdk.health.data.error.ResolvablePlatformException
 import com.samsung.android.sdk.health.data.permission.AccessType
@@ -23,18 +24,16 @@ private const val TAG = "SamsungHealthRepo"
  *
  * SDK data model (confirmed from AAR bytecode inspection):
  *
- *   DataTypes (com.samsung.android.sdk.health.data.request.DataTypes) holds singleton
- *   instances of each DataType subtype:
- *     DataTypes.HEART_RATE → DataType.HeartRateType  (implements Readable, supports readData)
- *     DataTypes.SLEEP      → DataType.SleepType       (implements Readable, supports readData)
- *     DataTypes.STEPS      → DataType.StepsType       (aggregate-only, no readDataRequestBuilder)
+ *   DataType.SleepType fields:
+ *     SESSIONS     → Field<List<SleepSession>>   each point holds full session breakdown
+ *     SLEEP_SCORE  → Field<Integer>              quality score 0-100
+ *     DURATION     → Field<Duration>             total sleep duration
  *
- *   readData()      → DataResponse<HealthDataPoint>    (heart rate, sleep)
- *   aggregateData() → DataResponse<AggregatedData<T>> (steps)
+ *   SleepSession has:
+ *     getStartTime/getEndTime/getDuration  — session span
+ *     getStages() → List<SleepStage>       — stage breakdown
  *
- *   Field descriptors on companion objects:
- *     DataType.HeartRateType.HEART_RATE → Field<Float>   (bpm per data point)
- *     DataType.StepsType.TOTAL          → AggregateOperation<Long, LocalTimeBuilder>
+ *   SleepStage.getStage() → StageType enum: UNDEFINED, AWAKE, LIGHT, DEEP, REM
  */
 class SamsungHealthRepository(private val context: Context) {
 
@@ -56,21 +55,25 @@ class SamsungHealthRepository(private val context: Context) {
     }
 
     /**
-     * Shows the Samsung Health permission popup if needed.
-     * Must be called from an Activity. Returns the granted permissions set.
+     * Shows the Samsung Health permission popup.
+     * Must be called from an Activity (pass it from Compose via LocalActivity).
      */
-    suspend fun requestPermissions(activity: Activity): Set<Permission> = try {
+    suspend fun requestPermissions(activity: Activity): Boolean = try {
         val store = HealthDataService.getStore(activity.applicationContext)
         val granted = store.getGrantedPermissions(readPermissions)
-        if (granted.containsAll(readPermissions)) granted
-        else store.requestPermissions(readPermissions, activity)
+        if (granted.containsAll(readPermissions)) {
+            true
+        } else {
+            val result = store.requestPermissions(readPermissions, activity)
+            result.containsAll(readPermissions)
+        }
     } catch (e: ResolvablePlatformException) {
-        Log.w(TAG, "ResolvablePlatformException (${e.message})")
+        Log.w(TAG, "ResolvablePlatformException: ${e.message}")
         if (e.hasResolution) e.resolve(activity)
-        emptySet()
+        false
     } catch (e: HealthDataException) {
         Log.e(TAG, "requestPermissions failed", e)
-        emptySet()
+        false
     }
 
     // ── Snapshot ──────────────────────────────────────────────────────────────
@@ -83,10 +86,16 @@ class SamsungHealthRepository(private val context: Context) {
             val today     = now.toLocalDate().atStartOfDay()
             val yesterday = today.minusDays(1)
 
+            val sleep = readSleep(store, yesterday, today.plusHours(12))
+
             HealthSnapshot(
-                stepCountToday      = readSteps(store, today, now),
-                restingHeartRate    = readRestingHr(store, today, now),
-                sleepHoursLastNight = readSleep(store, yesterday, today.plusHours(12)),
+                stepCountToday       = readSteps(store, today, now),
+                restingHeartRate     = readRestingHr(store, today, now),
+                sleepHoursLastNight  = sleep?.totalHours,
+                sleepScore           = sleep?.score,
+                sleepDeepMinutes     = sleep?.deepMinutes,
+                sleepRemMinutes      = sleep?.remMinutes,
+                sleepLightMinutes    = sleep?.lightMinutes,
             )
         } catch (e: HealthDataException) {
             Log.e(TAG, "readSnapshot failed", e)
@@ -96,10 +105,6 @@ class SamsungHealthRepository(private val context: Context) {
 
     // ── Individual queries ────────────────────────────────────────────────────
 
-    /**
-     * StepsType is aggregate-only — no readDataRequestBuilder.
-     * DataType.StepsType.TOTAL is AggregateOperation<Long, LocalTimeBuilder>.
-     */
     private suspend fun readSteps(
         store: HealthDataStore,
         start: LocalDateTime,
@@ -113,11 +118,6 @@ class SamsungHealthRepository(private val context: Context) {
         return list.sumOf { (it.value as? Long) ?: 0L }
     }
 
-    /**
-     * Heart rate: readData returns DataResponse<HealthDataPoint>.
-     * The bpm value is in the HEART_RATE field (Field<Float>) on each point.
-     * Taking the minimum as a resting-HR proxy.
-     */
     private suspend fun readRestingHr(
         store: HealthDataStore,
         start: LocalDateTime,
@@ -135,26 +135,72 @@ class SamsungHealthRepository(private val context: Context) {
         }.minOrNull()?.toInt()
     }
 
-    /**
-     * Sleep: readData returns DataResponse<HealthDataPoint>.
-     * Duration is derived from HealthDataPoint.startTime / endTime (both Instant, non-null).
-     */
+    private data class SleepResult(
+        val totalHours: Double,
+        val score: Int?,
+        val deepMinutes: Int,
+        val remMinutes: Int,
+        val lightMinutes: Int,
+    )
+
     private suspend fun readSleep(
         store: HealthDataStore,
         start: LocalDateTime,
         end: LocalDateTime,
-    ): Double? {
+    ): SleepResult? {
         val request = DataTypes.SLEEP.readDataRequestBuilder
             .setLocalTimeFilter(LocalTimeFilter.of(start, end))
             .setOrdering(Ordering.DESC)
             .build()
         val list = store.readData(request).dataList
         if (list.isEmpty()) return null
-        val totalMinutes = list.sumOf { point ->
-            java.time.Duration.between(point.startTime, point.endTime)
-                .toMinutes()
-                .coerceAtLeast(0)
+
+        // Take the most recent sleep record (first because Ordering.DESC)
+        val point = list.first()
+
+        val score = try {
+            @Suppress("UNCHECKED_CAST")
+            point.getValue(DataType.SleepType.SLEEP_SCORE) as? Int
+        } catch (_: Exception) { null }
+
+        val sessions = try {
+            @Suppress("UNCHECKED_CAST")
+            point.getValue(DataType.SleepType.SESSIONS) as? List<SleepSession>
+        } catch (_: Exception) { null }
+
+        var deepMin  = 0
+        var remMin   = 0
+        var lightMin = 0
+        var totalMin = 0L
+
+        if (!sessions.isNullOrEmpty()) {
+            for (session in sessions) {
+                for (stage in session.stages.orEmpty()) {
+                    val mins = java.time.Duration.between(stage.startTime, stage.endTime)
+                        .toMinutes().coerceAtLeast(0)
+                    when (stage.stage) {
+                        DataType.SleepType.StageType.DEEP  -> deepMin  += mins.toInt()
+                        DataType.SleepType.StageType.REM   -> remMin   += mins.toInt()
+                        DataType.SleepType.StageType.LIGHT -> lightMin += mins.toInt()
+                        DataType.SleepType.StageType.AWAKE -> { /* skip awake time */ }
+                        else -> { /* UNDEFINED */ }
+                    }
+                    if (stage.stage != DataType.SleepType.StageType.AWAKE) totalMin += mins
+                }
+            }
+        } else {
+            // Fallback: use point start/end if no stage data available
+            totalMin = java.time.Duration.between(point.startTime, point.endTime)
+                .toMinutes().coerceAtLeast(0)
         }
-        return if (totalMinutes > 0) totalMinutes / 60.0 else null
+
+        val hours = if (totalMin > 0) totalMin / 60.0 else return null
+        return SleepResult(
+            totalHours   = hours,
+            score        = score,
+            deepMinutes  = deepMin,
+            remMinutes   = remMin,
+            lightMinutes = lightMin,
+        )
     }
 }

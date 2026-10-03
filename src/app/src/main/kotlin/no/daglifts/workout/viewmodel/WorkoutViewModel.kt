@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import io.github.jan.supabase.auth.SessionStatus
+import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -23,7 +23,6 @@ import no.daglifts.workout.data.model.ExerciseSet
 import no.daglifts.workout.data.model.ExerciseSuggestion
 import no.daglifts.workout.data.model.HealthSnapshot
 import no.daglifts.workout.data.model.HomeBriefResponse
-import no.daglifts.workout.repository.SupabaseRepository
 import no.daglifts.workout.data.model.Session
 import no.daglifts.workout.data.model.SetInputs
 import no.daglifts.workout.repository.SamsungHealthRepository
@@ -65,6 +64,7 @@ data class HomeUiState(
     val homeBriefLoading: Boolean = false,
     val isSignedIn: Boolean = false,
     val healthSnapshot: HealthSnapshot? = null,
+    val healthPermissionsGranted: Boolean = false,
     val todayDeclineSquats: Int = 0,
     val profile: SupabaseRepository.UserProfile? = null,
 )
@@ -83,13 +83,13 @@ class WorkoutViewModel(
     private val _session = MutableStateFlow<SessionUiState>(SessionUiState.Idle)
     val session: StateFlow<SessionUiState> = _session.asStateFlow()
 
-    /** Live stream from Room — used in HistoryScreen. */
+    // Eagerly so .value is always current — startSession reads it for last-session defaults
     val sessions = workoutRepo.sessions.stateIn(
-        viewModelScope, SharingStarted.Lazily, emptyList()
+        viewModelScope, SharingStarted.Eagerly, emptyList()
     )
 
     val dailyLogs = workoutRepo.dailyLogs.stateIn(
-        viewModelScope, SharingStarted.Lazily, emptyList()
+        viewModelScope, SharingStarted.Eagerly, emptyList()
     )
 
     private val _toast = MutableStateFlow<String?>(null)
@@ -180,11 +180,25 @@ class WorkoutViewModel(
     // ── Samsung Health ─────────────────────────────────────────────────────────
 
     private suspend fun connectSamsungHealth() {
-        // New SDK: no explicit connect — getStore() is called per-operation.
-        // Just attempt a snapshot read; it returns empty if permissions aren't granted yet.
-        val snapshot = healthRepo.readSnapshot()
-        if (snapshot != HealthSnapshot()) {
+        val granted = healthRepo.hasPermissions()
+        _home.update { it.copy(healthPermissionsGranted = granted) }
+        if (granted) {
+            val snapshot = healthRepo.readSnapshot()
             _home.update { it.copy(healthSnapshot = snapshot) }
+        }
+    }
+
+    fun requestSamsungHealthPermissions(activity: android.app.Activity) {
+        viewModelScope.launch {
+            val granted = healthRepo.requestPermissions(activity)
+            _home.update { it.copy(healthPermissionsGranted = granted) }
+            if (granted) {
+                val snapshot = healthRepo.readSnapshot()
+                _home.update { it.copy(healthSnapshot = snapshot) }
+                _toast.value = "Samsung Health connected!"
+            } else {
+                _toast.value = "Samsung Health permissions denied"
+            }
         }
     }
 

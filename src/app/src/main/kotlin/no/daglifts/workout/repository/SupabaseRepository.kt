@@ -9,6 +9,7 @@ import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import io.ktor.client.call.body
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -309,40 +310,40 @@ class SupabaseRepository(private val client: SupabaseClient) {
     // ── Remote DTOs ───────────────────────────────────────────────────────────
 
     @Serializable data class UserProfile(
-        val trainingBackground: String? = null,
+        @SerialName("training_background") val trainingBackground: String? = null,
         val goals: String? = null,
         val injuries: String? = null,
-        val coachNotes: String? = null,
+        @SerialName("coach_notes") val coachNotes: String? = null,
     )
 
     @Serializable private data class RemoteSession(val id: Long)
 
     @Serializable internal data class RemoteSessionFull(
         val id: Long,
-        val localId: Long,
+        @SerialName("local_id")    val localId: Long,
         val type: String,
         val date: String,
-        val durationMs: Long? = null,
+        @SerialName("duration_ms") val durationMs: Long? = null,
         val notes: String? = null,
     )
 
     @Serializable internal data class RemoteSet(
-        val exerciseId: String,
-        val setIndex: Int,
+        @SerialName("exercise_id") val exerciseId: String,
+        @SerialName("set_index")   val setIndex: Int,
         val weight: Double? = null,
-        val weightL: Double? = null,
-        val weightR: Double? = null,
+        @SerialName("weight_l")    val weightL: Double? = null,
+        @SerialName("weight_r")    val weightR: Double? = null,
         val reps: Int? = null,
         val notes: String? = null,
-        val loggedAt: String? = null,
+        @SerialName("logged_at")   val loggedAt: String? = null,
     )
 
     @Serializable data class RemoteDailyLog(
         val id: Long? = null,
         val date: String,
-        val sleepHours: Double? = null,
+        @SerialName("sleep_hours")     val sleepHours: Double? = null,
         val activity: String? = null,
-        val declineSquats: Int? = null,
+        @SerialName("decline_squats")  val declineSquats: Int? = null,
     )
 }
 

@@ -119,7 +119,11 @@ data class HealthSnapshot(
     val stepCountToday: Long? = null,
     val restingHeartRate: Int? = null,
     val sleepHoursLastNight: Double? = null,
+    val sleepScore: Int? = null,         // Samsung Health sleep score 0-100
+    val sleepDeepMinutes: Int? = null,   // minutes in deep sleep last night
+    val sleepRemMinutes: Int? = null,    // minutes in REM sleep last night
+    val sleepLightMinutes: Int? = null,  // minutes in light sleep last night
     val activeCaloriesToday: Int? = null,
-    val stressScore: Int? = null,        // Samsung Health stress score 1-100 if available
+    val stressScore: Int? = null,
     val bodyWeightKg: Double? = null,
 )
