@@ -151,8 +151,7 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         model: 'claude-sonnet-5-5',
         max_tokens: 600,
-        cache-control: {type: ephemeral}
-        system: systemPrompt,
+        system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
         messages,
       }),
     })

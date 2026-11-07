@@ -31,8 +31,8 @@ android {
     defaultConfig {
         applicationId = "no.daglifts.workout"
         minSdk = 29          // Android 10 — Samsung Health SDK 1.1.0 requires 29+
-        targetSdk = 35
-        versionCode = 5
+        targetSdk = 36
+        versionCode = 6
         versionName = "1.1"
 
         // Inject secrets into BuildConfig (accessible as BuildConfig.SUPABASE_URL etc.)

@@ -21,19 +21,6 @@ private const val TAG = "SamsungHealthRepo"
 
 /**
  * Reads health metrics from Samsung Health via the Samsung Health Data SDK 1.1.0.
- *
- * SDK data model (confirmed from AAR bytecode inspection):
- *
- *   DataType.SleepType fields:
- *     SESSIONS     → Field<List<SleepSession>>   each point holds full session breakdown
- *     SLEEP_SCORE  → Field<Integer>              quality score 0-100
- *     DURATION     → Field<Duration>             total sleep duration
- *
- *   SleepSession has:
- *     getStartTime/getEndTime/getDuration  — session span
- *     getStages() → List<SleepStage>       — stage breakdown
- *
- *   SleepStage.getStage() → StageType enum: UNDEFINED, AWAKE, LIGHT, DEEP, REM
  */
 class SamsungHealthRepository(private val context: Context) {
 
@@ -54,10 +41,6 @@ class SamsungHealthRepository(private val context: Context) {
         false
     }
 
-    /**
-     * Shows the Samsung Health permission popup.
-     * Must be called from an Activity (pass it from Compose via LocalActivity).
-     */
     suspend fun requestPermissions(activity: Activity): Boolean = try {
         val store = HealthDataService.getStore(activity.applicationContext)
         val granted = store.getGrantedPermissions(readPermissions)
@@ -110,6 +93,7 @@ class SamsungHealthRepository(private val context: Context) {
         start: LocalDateTime,
         end: LocalDateTime,
     ): Long? {
+        // Use DataType.StepsType.TOTAL for aggregation
         val request = DataType.StepsType.TOTAL.requestBuilder
             .setLocalTimeFilter(LocalTimeFilter.of(start, end))
             .build()
@@ -129,7 +113,7 @@ class SamsungHealthRepository(private val context: Context) {
             .build()
         val list = store.readData(request).dataList
         if (list.isEmpty()) return null
-        @Suppress("UNCHECKED_CAST")
+        
         return list.mapNotNull { point ->
             try { point.getValue(DataType.HeartRateType.HEART_RATE) as? Float } catch (_: Exception) { null }
         }.minOrNull()?.toInt()
@@ -155,11 +139,9 @@ class SamsungHealthRepository(private val context: Context) {
         val list = store.readData(request).dataList
         if (list.isEmpty()) return null
 
-        // Take the most recent sleep record (first because Ordering.DESC)
         val point = list.first()
 
         val score = try {
-            @Suppress("UNCHECKED_CAST")
             point.getValue(DataType.SleepType.SLEEP_SCORE) as? Int
         } catch (_: Exception) { null }
 
@@ -182,14 +164,12 @@ class SamsungHealthRepository(private val context: Context) {
                         DataType.SleepType.StageType.DEEP  -> deepMin  += mins.toInt()
                         DataType.SleepType.StageType.REM   -> remMin   += mins.toInt()
                         DataType.SleepType.StageType.LIGHT -> lightMin += mins.toInt()
-                        DataType.SleepType.StageType.AWAKE -> { /* skip awake time */ }
-                        else -> { /* UNDEFINED */ }
+                        else -> {}
                     }
                     if (stage.stage != DataType.SleepType.StageType.AWAKE) totalMin += mins
                 }
             }
         } else {
-            // Fallback: use point start/end if no stage data available
             totalMin = java.time.Duration.between(point.startTime, point.endTime)
                 .toMinutes().coerceAtLeast(0)
         }
