@@ -546,6 +546,94 @@
       z-index: 300; white-space: nowrap; pointer-events: none;
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── BODY COMPOSITION ────────────────────── */
+    .body-home-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 12px 14px; width: 100%;
+      display: flex; align-items: center; gap: 10px;
+      font-family: inherit; color: var(--text); text-align: left; cursor: pointer;
+    }
+    .body-home-card:active { opacity: 0.8; }
+    .body-home-title { font-size: 14px; font-weight: 700; }
+    .body-home-sum { font-size: 12px; color: var(--muted); margin-left: auto; text-align: right; }
+    .body-body {
+      flex: 1; overflow-y: auto; padding: 14px 16px calc(var(--safe-b) + 32px);
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .body-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 12px 14px;
+      display: flex; flex-direction: column; gap: 10px; min-width: 0;
+    }
+    .body-card-hdr { display: flex; align-items: center; gap: 8px; }
+    .body-card-title { font-size: 13px; font-weight: 700; flex: 1; }
+    .body-sub { font-size: 12px; color: var(--muted); line-height: 1.45; }
+    .body-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .body-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .body-field label { font-size: 11px; color: var(--muted); font-weight: 600; }
+    .body-field input { width: 100%; font-size: 16px; text-align: right; }
+    .body-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+    .body-status { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .body-stat {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 10px 12px; min-width: 0;
+    }
+    .body-stat.primary { grid-column: 1 / -1; }
+    .body-stat-lbl { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+    .body-stat-val { font-size: 22px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+    .body-stat.primary .body-stat-val { font-size: 28px; }
+    .body-stat-val small { font-size: 13px; font-weight: 600; color: var(--muted); margin-left: 3px; }
+    .body-stat-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .body-pill {
+      display: inline-flex; align-items: center; gap: 4px; margin-top: 6px;
+      font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 100px;
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+    }
+    .body-pill.ahead, .body-pill.on-track { border-color: rgba(200,245,66,0.5); }
+    .body-pill.behind { border-color: rgba(255,159,28,0.6); }
+    .body-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+    .body-pill.ahead .dot, .body-pill.on-track .dot { background: #c8f542; }
+    .body-pill.behind .dot { background: #ff9f1c; }
+    .body-range { display: flex; gap: 6px; align-items: center; }
+    .body-range button {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--muted);
+      border-radius: 100px; padding: 5px 12px; font-size: 12px; font-weight: 600;
+      font-family: inherit; cursor: pointer;
+    }
+    .body-range button.on { color: var(--text); border-color: var(--accent); }
+    .body-chart { position: relative; }
+    .body-chart svg { width: 100%; height: auto; display: block; touch-action: pan-y; }
+    .body-chart .ax { font-size: 10px; fill: var(--muted); font-family: inherit; }
+    .body-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
+    .body-legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .body-legend i { display: inline-block; width: 16px; height: 0; border-top: 2px solid var(--accent); }
+    .body-legend i.tgt { border-top: 2px dashed var(--muted); }
+    .body-legend i.raw { width: 7px; height: 7px; border: none; border-radius: 50%; background: var(--accent); opacity: 0.45; }
+    .body-tip {
+      position: absolute; top: 0; pointer-events: none; display: none;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 6px 8px; font-size: 11px; color: var(--muted); white-space: nowrap; z-index: 5;
+    }
+    .body-tip b { color: var(--text); font-size: 13px; }
+    .body-hist-item {
+      display: flex; align-items: flex-start; gap: 8px; padding: 8px 0;
+      border-top: 1px solid var(--border); cursor: pointer;
+    }
+    .body-hist-item:first-child { border-top: none; }
+    .body-hist-date { font-size: 13px; font-weight: 700; width: 74px; flex-shrink: 0; }
+    .body-hist-vals { font-size: 12px; color: var(--muted); flex: 1; line-height: 1.5; min-width: 0; overflow-wrap: anywhere; }
+    .body-hist-vals b { color: var(--text); font-weight: 600; }
+    .body-del {
+      background: none; border: none; color: var(--muted); font-size: 18px;
+      cursor: pointer; padding: 0 4px; line-height: 1;
+    }
+    .body-unsynced { color: #ff9f1c; }
+    .body-plan-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .body-plan-table th { color: var(--muted); font-weight: 600; text-align: right; padding: 3px 2px; }
+    .body-plan-table td { text-align: right; padding: 4px 2px; border-top: 1px solid var(--border); }
+    .body-plan-table th:first-child, .body-plan-table td:first-child { text-align: left; }
+    .body-plan-text { width: 100%; min-height: 96px; font-size: 13px; resize: vertical; font-family: ui-monospace, Menlo, monospace; }
   </style>
 </head>
 <body>
@@ -605,6 +693,10 @@
     </div>
     <button class="daily-log-save" onclick="saveDailyLog()">Log</button>
   </div>
+  <button class="body-home-card" onclick="showBody()">
+    <span class="body-home-title">📏 Body</span>
+    <span class="body-home-sum" id="body-home-sum"></span>
+  </button>
   <div class="home-actions">
     <button class="btn-ghost" onclick="showHistory()">📋 History</button>
     <button class="btn-ghost" onclick="exportData()">⬇ Export JSON</button>
@@ -645,6 +737,56 @@
     <button class="ibtn" onclick="exportData()">⬇</button>
   </div>
   <div class="hist-body" id="hist-body"></div>
+</div>
+
+<!-- BODY COMPOSITION -->
+<div class="screen" id="body">
+  <div class="hdr">
+    <button class="ibtn" onclick="showScreen('home')">←</button>
+    <h1>Body</h1>
+    <button class="ibtn" onclick="toggleBodyPlan()" title="Target plan">🎯</button>
+  </div>
+  <div class="body-body">
+    <div class="body-card" id="body-plan" style="display:none">
+      <div class="body-card-hdr"><span class="body-card-title">Target plan</span></div>
+      <div id="body-plan-list"></div>
+      <p class="body-sub">Paste checkpoints, one per line: <code>date weight / waist / suprailiac / abdominal</code>. Use <code>-</code> for a value with no target. Example: <code>1.3.2027 90 / 85 / 6 / 12</code></p>
+      <textarea id="body-plan-text" class="daily-log-input body-plan-text" placeholder="1.3.2027 90 / 85 / 6 / 12&#10;15.3.2027 89,5 / 84,5 / 5,5 / 11"></textarea>
+      <div class="body-actions">
+        <button class="btn-ghost" onclick="applyBodyPlan(false)">Add / update</button>
+        <button class="daily-log-save" onclick="applyBodyPlan(true)">Replace plan</button>
+      </div>
+    </div>
+
+    <div class="body-status" id="body-status"></div>
+
+    <form class="body-card" id="body-form" onsubmit="saveBodyEntry(event)" autocomplete="off">
+      <div class="body-card-hdr">
+        <span class="body-card-title" id="bm-title">Log measurement</span>
+        <input id="bm-date" type="date" class="daily-log-date" onchange="fillBodyForm(this.value)">
+      </div>
+      <div class="body-grid" id="bm-grid"></div>
+      <input id="bm-note" type="text" class="daily-log-input" placeholder="Note (optional)" enterkeyhint="done">
+      <div class="body-actions">
+        <button type="submit" class="daily-log-save">Save</button>
+      </div>
+    </form>
+
+    <div class="body-range" id="body-range">
+      <button data-range="plan" onclick="setBodyRange('plan')">Plan period</button>
+      <button data-range="all" onclick="setBodyRange('all')">All</button>
+    </div>
+    <div id="body-charts" style="display:flex;flex-direction:column;gap:12px"></div>
+
+    <div class="body-card">
+      <div class="body-card-hdr">
+        <span class="body-card-title">Entries</span>
+        <button class="btn-ghost" onclick="document.getElementById('body-csv').click()">⬆ Import CSV</button>
+        <input id="body-csv" type="file" accept=".csv,.txt,text/csv,text/plain" style="display:none" onchange="importBodyCsv(this)">
+      </div>
+      <div id="body-hist"></div>
+    </div>
+  </div>
 </div>
 
 <!-- PROFILE -->
@@ -848,7 +990,8 @@ function findEx(id) {
 
 // ── INDEXEDDB ─────────────────────────────────────────────────────────────
 
-const DB_NAME = 'daglifts2', DB_VER = 1, STORE = 'sessions';
+const DB_NAME = 'daglifts2', DB_VER = 2, STORE = 'sessions';
+const BODY_STORE = 'body', TARGET_STORE = 'body_targets';   // keyed by 'YYYY-MM-DD'
 let db;
 
 function openDB() {
@@ -859,8 +1002,17 @@ function openDB() {
       if (!d.objectStoreNames.contains(STORE)) {
         d.createObjectStore(STORE, { keyPath: 'id' });
       }
+      for (const name of [BODY_STORE, TARGET_STORE]) {
+        if (!d.objectStoreNames.contains(name)) d.createObjectStore(name, { keyPath: 'date' });
+      }
     };
-    req.onsuccess = e => { db = e.target.result; res(db); };
+    req.onsuccess = e => {
+      db = e.target.result;
+      // A newer version of the app opened in another tab: release the DB so its upgrade can run.
+      db.onversionchange = () => { db.close(); showToast('App updated — reload'); };
+      res(db);
+    };
+    req.onblocked = () => console.warn('IndexedDB upgrade blocked by another open tab');
     req.onerror = () => rej(req.error);
   });
 }
@@ -1081,6 +1233,7 @@ async function refreshHome() {
   document.getElementById('gym-last').textContent     = lastGym   ? `Last: ${fmtDate(lastGym.date)}`   : '';
   document.getElementById('out-last').textContent     = lastOut   ? `Last: ${fmtDate(lastOut.date)}`   : '';
   document.getElementById('noequip-last').textContent = lastNoEq  ? `Last: ${fmtDate(lastNoEq.date)}`  : '';
+  try { await loadBody(); renderBodyHomeCard(); } catch (e) { console.warn('loadBody failed:', e); }
 }
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────
@@ -2121,6 +2274,7 @@ function initAuth() {
       // overwriting in-memory messages that haven't been persisted yet.
       if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
         syncPendingSessions();
+        syncBody();
         prefetchCoach('gym'); // warm gym cache; other types fetched on demand
       }
       if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
@@ -2823,6 +2977,7 @@ async function fetchCoach(type) {
             .filter(s => s.type === 'daily_log' && s.date >= cutoff)
             .map(l => ({ date: l.date, notes: l.notes, activity: l.activity }));
         })(),
+        body_comp: (() => { try { return buildBodyCompPayload(); } catch { return null; } })(),
       }),
     });
     if (!resp.ok) throw new Error(`${resp.status}`);
@@ -2878,6 +3033,726 @@ async function loadCoachForSession(type) {
 async function prefetchCoach(type) {
   if (!sbClient || !authUser || getCachedCoach(type)) return;
   fetchCoach(type); // fire-and-forget — just populates the cache
+}
+
+// ── BODY COMPOSITION ──────────────────────────────────────────────────────
+// Measurements + target plan, stored per date in IndexedDB (BODY_STORE / TARGET_STORE)
+// and synced to body_measurements / body_targets. Lower is better for every metric.
+
+const BODY_METRICS = [
+  { key: 'waist_cm',      label: 'Waist',      short: 'Wa', unit: 'cm', tol: 0.5, min: 50, max: 200, target: true },
+  { key: 'weight_kg',     label: 'Weight',     short: 'W',  unit: 'kg', tol: 0.3, min: 40, max: 250, target: true },
+  { key: 'suprailiac_mm', label: 'Suprailiac', short: 'Si', unit: 'mm', tol: 0.5, min: 1,  max: 80,  target: true },
+  { key: 'abdominal_mm',  label: 'Abdominal',  short: 'Ab', unit: 'mm', tol: 0.5, min: 1,  max: 80,  target: true },
+  { key: 'chest_mm',      label: 'Chest',      short: 'Ch', unit: 'mm', tol: 0.5, min: 1,  max: 80,  target: false },
+  { key: 'triceps_mm',    label: 'Triceps',    short: 'Tr', unit: 'mm', tol: 0.5, min: 1,  max: 80,  target: false },
+];
+// Column order for plan entry/paste (weight first, as written in the plan); display order is BODY_METRICS.
+const TARGET_KEYS = ['weight_kg', 'waist_cm', 'suprailiac_mm', 'abdominal_mm'];
+const BODY = { list: [], targets: [], range: 'plan', planOpen: false };
+
+// ── Number + date helpers ──
+
+const _nbFmt = new Map();
+function fmtNo(v, dec = 1) {
+  if (v == null || !Number.isFinite(v)) return '–';
+  let f = _nbFmt.get(dec);
+  if (!f) {
+    f = new Intl.NumberFormat('nb-NO', { minimumFractionDigits: dec, maximumFractionDigits: dec, useGrouping: false });
+    _nbFmt.set(dec, f);
+  }
+  return f.format(v);
+}
+function fmtSigned(v, dec = 1) {
+  if (v == null || !Number.isFinite(v)) return '–';
+  const r = Number(v.toFixed(dec)) || 0;   // || 0 turns -0 into 0
+  return (r > 0 ? '+' : '') + fmtNo(r, dec);
+}
+// Accepts "102,5", "102.5", " 102 ". Returns null for blank, NaN for garbage.
+function parseNum(s) {
+  if (s == null) return null;
+  const t = String(s).trim().replace(/\s/g, '').replace(',', '.');
+  if (t === '' || t === '-' || t === '–') return null;
+  return /^-?(\d+\.?\d*|\.\d+)$/.test(t) ? Number(t) : NaN;
+}
+function localISO(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function dayNum(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return Date.UTC(y, m - 1, d) / 864e5;
+}
+function isoFromDay(n) { return new Date(n * 864e5).toISOString().slice(0, 10); }
+function fmtDM(iso, withYear) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return withYear ? `${d}.${m}.${y}` : `${d}.${m}.`;
+}
+// "2026-11-07", "7.11.2026", "7.11.26", "7/11/2026", or "7.11." (year inferred: most recent year
+// that does not put the date in the future). Returns ISO or null.
+function parseDateLoose(s, todayIso = localISO()) {
+  const t = String(s ?? '').trim();
+  let y, m, d;
+  let mt = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (mt) { [, y, m, d] = mt.map(Number); }
+  else if ((mt = t.match(/^(\d{1,2})[./](\d{1,2})[./]?(\d{2}|\d{4})?$/))) {
+    d = Number(mt[1]); m = Number(mt[2]);
+    if (mt[3]) { y = Number(mt[3]); if (y < 100) y += 2000; }
+    else {
+      y = Number(todayIso.slice(0, 4));
+      const cand = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      if (cand > todayIso) y -= 1;
+    }
+  } else return null;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
+  return dt.toISOString().slice(0, 10);
+}
+
+// ── Calculations (pure; rows are sorted ascending by date) ──
+
+function bodySeries(rows, key) {
+  return rows.filter(r => r[key] != null).map(r => ({ date: r.date, day: dayNum(r.date), v: Number(r[key]) }));
+}
+// 7-day trailing average of weight at every weigh-in. `mid` is the mean day of the readings in
+// the window — the average lags, so it is compared with the target at `mid`, not at the last date.
+function weightAvg7(rows) {
+  const w = bodySeries(rows, 'weight_kg');
+  return w.map(p => {
+    const win = w.filter(q => q.day <= p.day && q.day > p.day - 7);
+    return {
+      date: p.date, day: p.day, n: win.length,
+      v: win.reduce((a, q) => a + q.v, 0) / win.length,
+      mid: win.reduce((a, q) => a + q.day, 0) / win.length,
+    };
+  });
+}
+function targetPoints(targets, key) {
+  return targets.filter(t => t[key] != null).map(t => ({ day: dayNum(t.date), v: Number(t[key]) }))
+    .sort((a, b) => a.day - b.day);
+}
+// Linear interpolation between checkpoints. null before the plan starts; after the last
+// checkpoint the final target holds (afterEnd = true).
+function targetAt(targets, key, day) {
+  const pts = targetPoints(targets, key);
+  if (!pts.length || day < pts[0].day) return null;
+  const last = pts[pts.length - 1];
+  if (day >= last.day) return { v: last.v, afterEnd: day > last.day };
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1];
+    if (day >= a.day && day <= b.day) {
+      return { v: a.v + (b.v - a.v) * (day - a.day) / (b.day - a.day), afterEnd: false };
+    }
+  }
+  return null;
+}
+function bodyLatest(rows, m) {
+  if (m.key === 'weight_kg') {
+    const a = weightAvg7(rows).at(-1);
+    return a ? { date: a.date, v: a.v, cmpDay: a.mid, n: a.n, avg: true } : null;
+  }
+  const s = bodySeries(rows, m.key).at(-1);
+  return s ? { date: s.date, v: s.v, cmpDay: s.day } : null;
+}
+function bodyStatus(rows, targets, m) {
+  const cur = bodyLatest(rows, m);
+  if (!cur) return null;
+  // The 7-day average's mid-date can fall just before the plan starts (e.g. right after
+  // importing history); once the latest reading is inside the plan, compare from its start.
+  const tp = m.target ? targetPoints(targets, m.key) : [];
+  const cmpDay = tp.length && dayNum(cur.date) >= tp[0].day ? Math.max(cur.cmpDay, tp[0].day) : cur.cmpDay;
+  const t = m.target ? targetAt(targets, m.key, cmpDay) : null;
+  if (!t) return { ...cur, metric: m };
+  const diff = cur.v - t.v;
+  const state = diff <= -m.tol ? 'ahead' : diff >= m.tol ? 'behind' : 'on track';
+  return { ...cur, metric: m, target: t.v, afterEnd: t.afterEnd, diff, state };
+}
+// Change over ~`days`: latest value minus the value nearest to (latest − days), within a tolerance.
+function bodyChange(rows, m, days) {
+  const s = m.key === 'weight_kg' ? weightAvg7(rows) : bodySeries(rows, m.key);
+  const last = s.at(-1);
+  if (!last) return null;
+  const want = last.day - days, tol = Math.max(3, Math.round(days / 4));
+  let best = null;
+  for (const p of s) {
+    if (p.day >= last.day) continue;
+    const dist = Math.abs(p.day - want);
+    if (dist <= tol && (!best || dist < Math.abs(best.day - want))) best = p;
+  }
+  return best ? { delta: last.v - best.v, from: best.date } : null;
+}
+// Compact summary for the session-coach edge function. null when there's nothing recent.
+function buildBodyCompPayload(rows = BODY.list, targets = BODY.targets, todayIso = localISO()) {
+  const cutoff = dayNum(todayIso) - 60;
+  const r2 = v => v == null ? null : Math.round(v * 100) / 100;
+  const out = { latest: {}, trend: {}, status: {} };
+  for (const m of BODY_METRICS) {
+    const s = bodySeries(rows, m.key).at(-1);
+    if (!s || s.day < cutoff) continue;
+    out.latest[m.key] = { v: r2(s.v), date: s.date };
+    if (m.key === 'weight_kg') {
+      const a = weightAvg7(rows).at(-1);
+      out.latest.weight_avg7_kg = { v: r2(a.v), date: a.date, n: a.n };
+    }
+    const d14 = bodyChange(rows, m, 14), d28 = bodyChange(rows, m, 28);
+    if (d14 || d28) out.trend[m.key] = { d14: r2(d14?.delta), d28: r2(d28?.delta) };
+    const st = bodyStatus(rows, targets, m);
+    if (st?.state) out.status[m.key] = { v: r2(st.v), target: r2(st.target), diff: r2(st.diff), state: st.state, after_plan_end: st.afterEnd || undefined };
+  }
+  return Object.keys(out.latest).length ? out : null;
+}
+// Plan lines: "1.3.2027 90 / 85 / 6 / 12" (also ; or tab separated; "-" = no target).
+function parsePlanText(text, todayIso = localISO()) {
+  const rows = [], errors = [];
+  for (const [i, raw] of text.split(/\r?\n/).entries()) {
+    const line = raw.trim();
+    if (!line) continue;
+    const toks = line.split(/[\s\/;\t|]+/).filter(Boolean);
+    const date = parseDateLoose(toks[0], todayIso);
+    if (!date) { errors.push(`line ${i + 1}: bad date "${toks[0]}"`); continue; }
+    const vals = [];
+    for (const tk of toks.slice(1)) {
+      const n = parseNum(tk);
+      if (Number.isNaN(n)) break;          // trailing text like "(start)"
+      vals.push(n);
+      if (vals.length === TARGET_KEYS.length) break;
+    }
+    if (!vals.some(v => v != null)) { errors.push(`line ${i + 1}: no values`); continue; }
+    const row = { date };
+    TARGET_KEYS.forEach((k, j) => { row[k] = vals[j] ?? null; });
+    rows.push(row);
+  }
+  return { rows, errors };
+}
+function splitCsvLine(line, delim) {
+  const out = []; let cur = '', q = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (q) {
+      if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (c === '"') q = false;
+      else cur += c;
+    } else if (c === '"') q = true;
+    else if (c === delim) { out.push(cur); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+// CSV history: date (d.m.), weight, waist, suprailiac, abdominal [, chest, triceps].
+// Header names (English or Norwegian) override the positional order. Blank = no value.
+function parseBodyCsv(text, todayIso = localISO()) {
+  const lines = text.replace(/^﻿/, '').split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) return { rows: [], errors: ['empty file'] };
+  const sample = lines.slice(0, 5).join('\n');
+  const delim = sample.includes(';') ? ';' : sample.includes('\t') ? '\t' : ',';
+  let cols = ['date', 'weight_kg', 'waist_cm', 'suprailiac_mm', 'abdominal_mm', 'chest_mm', 'triceps_mm'];
+  const first = splitCsvLine(lines[0], delim);
+  let start = 0;
+  if (!parseDateLoose(first[0], todayIso)) {
+    start = 1;
+    const map = [
+      [/dat/i, 'date'], [/weight|vekt|kg/i, 'weight_kg'], [/waist|midje|liv/i, 'waist_cm'],
+      [/supra|hofte/i, 'suprailiac_mm'], [/abd|mage/i, 'abdominal_mm'],
+      [/chest|bryst/i, 'chest_mm'], [/tric/i, 'triceps_mm'],
+    ];
+    const named = first.map(h => (map.find(([re]) => re.test(h)) || [])[1] || null);
+    if (named.includes('date') && named.filter(Boolean).length >= 2) cols = named;
+  }
+  const rows = [], errors = [];
+  for (let i = start; i < lines.length; i++) {
+    const cells = splitCsvLine(lines[i], delim);
+    const row = {};
+    let date = null;
+    cols.forEach((c, j) => {
+      if (!c) return;
+      if (c === 'date') { date = parseDateLoose(cells[j], todayIso); return; }
+      const n = parseNum(cells[j]);
+      if (Number.isNaN(n)) errors.push(`line ${i + 1}: bad ${c} "${cells[j]}"`);
+      else if (n != null) row[c] = n;
+    });
+    if (!date) { errors.push(`line ${i + 1}: bad date "${cells[0]}"`); continue; }
+    if (Object.keys(row).length) rows.push({ date, ...row });
+  }
+  return { rows, errors };
+}
+
+// ── Storage + sync ──
+
+function storeAll(name) {
+  return new Promise((res, rej) => {
+    const req = db.transaction(name, 'readonly').objectStore(name).getAll();
+    req.onsuccess = () => res(req.result.sort((a, b) => a.date.localeCompare(b.date)));
+    req.onerror = () => rej(req.error);
+  });
+}
+function storePutMany(name, recs) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(name, 'readwrite');
+    const st = tx.objectStore(name);
+    for (const r of recs) st.put(r);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  });
+}
+function storeDel(name, key) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(name, 'readwrite');
+    tx.objectStore(name).delete(key);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  });
+}
+
+const BODY_TABLES = {
+  [BODY_STORE]:   { table: 'body_measurements', cols: [...BODY_METRICS.map(m => m.key), 'note'] },
+  [TARGET_STORE]: { table: 'body_targets',      cols: TARGET_KEYS },
+};
+
+async function loadBody() {
+  if (!db) return;
+  BODY.list = (await storeAll(BODY_STORE)).filter(r => !r.deleted);
+  BODY.targets = (await storeAll(TARGET_STORE)).filter(r => !r.deleted);
+}
+
+// Local write: mark unsynced, then try to push (fails silently offline; retried at startup).
+async function bodyPut(store, recs) {
+  const now = new Date().toISOString();
+  await storePutMany(store, recs.map(r => ({ ...r, updated_at: now, synced: false })));
+  await loadBody();
+  syncBody();
+}
+async function bodyRemove(store, date) {
+  const all = await storeAll(store);
+  const r = all.find(x => x.date === date);
+  if (!r) return;
+  // Never reached the server → just drop it. Otherwise leave a tombstone for sync.
+  if (!r.remote) await storeDel(store, date);
+  else await storePutMany(store, [{ ...r, deleted: true, synced: false, updated_at: new Date().toISOString() }]);
+  await loadBody();
+  syncBody();
+}
+
+let _bodySyncing = null, _bodyResync = false;
+function syncBody() {
+  if (!sbClient || !authUser || !db) return Promise.resolve();
+  if (_bodySyncing) { _bodyResync = true; return _bodySyncing; }  // run again after the current pass
+  _bodySyncing = (async () => {
+    do { _bodyResync = false; await syncBodyOnce(); } while (_bodyResync);
+    await loadBody();
+    renderBodyHomeCard();
+    if (document.getElementById('body')?.classList.contains('active')) renderBody();
+  })().finally(() => { _bodySyncing = null; });
+  return _bodySyncing;
+}
+
+async function syncBodyOnce() {
+    for (const [store, cfg] of Object.entries(BODY_TABLES)) {
+      try {
+        // Push: one delete + one upsert per table
+        const pending = (await storeAll(store)).filter(r => !r.synced);
+        const dels = pending.filter(r => r.deleted), ups = pending.filter(r => !r.deleted);
+        if (dels.length) {
+          const { error } = await sbClient.from(cfg.table).delete()
+            .eq('user_id', authUser.id).in('date', dels.map(r => r.date));
+          if (error) throw error;
+        }
+        if (ups.length) {
+          const rows = ups.map(r => {
+            const row = { user_id: authUser.id, date: r.date, updated_at: r.updated_at };
+            for (const c of cfg.cols) row[c] = r[c] ?? null;
+            return row;
+          });
+          const { error } = await sbClient.from(cfg.table).upsert(rows, { onConflict: 'user_id,date' });
+          if (error) throw error;
+        }
+        if (pending.length) {
+          // Only settle records that weren't changed again while the requests were in flight
+          const cur = new Map((await storeAll(store)).map(r => [r.date, r]));
+          const settled = [];
+          for (const r of dels) {
+            const c = cur.get(r.date);
+            if (c?.deleted && c.updated_at === r.updated_at) await storeDel(store, r.date);
+          }
+          for (const r of ups) {
+            const c = cur.get(r.date);
+            if (c && !c.deleted && c.updated_at === r.updated_at) settled.push({ ...c, synced: true, remote: true });
+          }
+          if (settled.length) await storePutMany(store, settled);
+        }
+        // Pull: the server is the truth for every local record that has no pending change
+        const { data, error } = await sbClient.from(cfg.table)
+          .select(['date', 'updated_at', ...cfg.cols].join(','))
+          .eq('user_id', authUser.id);
+        if (error) throw error;
+        const local = new Map((await storeAll(store)).map(r => [r.date, r]));
+        const remoteDates = new Set();
+        const puts = [];
+        for (const rr of data) {
+          remoteDates.add(rr.date);
+          const l = local.get(rr.date);
+          if (l && !l.synced) continue;
+          const rec = { date: rr.date, updated_at: rr.updated_at, synced: true, remote: true };
+          for (const c of cfg.cols) rec[c] = rr[c] == null ? null : (c === 'note' ? rr[c] : Number(rr[c]));
+          puts.push(rec);
+        }
+        if (puts.length) await storePutMany(store, puts);
+        for (const l of local.values()) {
+          if (l.synced && !remoteDates.has(l.date)) await storeDel(store, l.date); // deleted elsewhere
+        }
+      } catch (e) {
+        console.warn(`Body sync (${cfg.table}) failed:`, e);
+      }
+    }
+}
+
+function clearCoachCache() {
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith('coach-cache-')) localStorage.removeItem(k);
+  } catch {}
+}
+
+// ── UI ──
+
+function renderBodyHomeCard() {
+  const el = document.getElementById('body-home-sum');
+  if (!el) return;
+  const st = bodyStatus(BODY.list, BODY.targets, BODY_METRICS[0]);
+  if (!st) { el.textContent = BODY.list.length ? '' : 'Log weight, waist, skinfolds'; return; }
+  el.textContent = `Waist ${fmtNo(st.v)} cm` + (st.state ? ` · ${st.state} (${fmtSigned(st.diff)})` : '');
+}
+
+async function showBody() {
+  await loadBody();
+  showScreen('body');
+  const grid = document.getElementById('bm-grid');
+  if (!grid.children.length) {
+    for (const m of BODY_METRICS) {
+      const f = document.createElement('div');
+      f.className = 'body-field';
+      f.innerHTML = `<label for="bm-${m.key}">${m.label} (${m.unit})</label>
+        <input id="bm-${m.key}" class="daily-log-input" type="text" inputmode="decimal" enterkeyhint="next" placeholder="–">`;
+      grid.appendChild(f);
+    }
+  }
+  fillBodyForm(localISO());
+  renderBody();
+}
+
+function fillBodyForm(date) {
+  const dEl = document.getElementById('bm-date');
+  dEl.value = date;
+  dEl.max = localISO();
+  const r = BODY.list.find(x => x.date === date);
+  for (const m of BODY_METRICS) {
+    document.getElementById(`bm-${m.key}`).value = r?.[m.key] != null ? String(r[m.key]).replace('.', ',') : '';
+  }
+  document.getElementById('bm-note').value = r?.note ?? '';
+  document.getElementById('bm-title').textContent = r ? `Edit ${fmtDM(date)}` : 'Log measurement';
+}
+
+async function saveBodyEntry(ev) {
+  ev?.preventDefault();
+  const date = document.getElementById('bm-date').value;
+  if (!date) { showToast('Pick a date'); return; }
+  const rec = { date };
+  for (const m of BODY_METRICS) {
+    const n = parseNum(document.getElementById(`bm-${m.key}`).value);
+    if (Number.isNaN(n)) { showToast(`${m.label}: not a number`); return; }
+    if (n != null && (n < m.min || n > m.max)) { showToast(`${m.label}: ${fmtNo(n)} ${m.unit} looks wrong`); return; }
+    rec[m.key] = n;
+  }
+  const note = document.getElementById('bm-note').value.trim();
+  rec.note = note || null;
+  if (BODY_METRICS.every(m => rec[m.key] == null) && !rec.note) {
+    if (BODY.list.some(x => x.date === date)) return deleteBodyEntry(date);
+    showToast('Nothing to save'); return;
+  }
+  await bodyPut(BODY_STORE, [rec]);
+  clearCoachCache();
+  showToast('Saved');
+  fillBodyForm(date);
+  renderBody();
+  renderBodyHomeCard();
+}
+
+async function deleteBodyEntry(date) {
+  if (!confirm(`Delete measurements for ${fmtDM(date, true)}?`)) return;
+  await bodyRemove(BODY_STORE, date);
+  clearCoachCache();
+  showToast('Deleted');
+  fillBodyForm(document.getElementById('bm-date').value || localISO());
+  renderBody();
+  renderBodyHomeCard();
+}
+
+function setBodyRange(r) { BODY.range = r; renderBodyCharts(); }
+
+function toggleBodyPlan() {
+  BODY.planOpen = !BODY.planOpen;
+  document.getElementById('body-plan').style.display = BODY.planOpen ? '' : 'none';
+  if (BODY.planOpen) renderBodyPlan();
+}
+
+function renderBody() {
+  renderBodyStatus();
+  renderBodyCharts();
+  renderBodyHist();
+  if (BODY.planOpen) renderBodyPlan();
+}
+
+function renderBodyStatus() {
+  const el = document.getElementById('body-status');
+  const today = dayNum(localISO());
+  const next = BODY.targets.find(t => dayNum(t.date) >= today);
+  let html = '';
+  BODY_METRICS.forEach((m, i) => {
+    const st = bodyStatus(BODY.list, BODY.targets, m);
+    if (!st && !m.target) return;
+    let pill = '';
+    if (st?.state) {
+      const cls = st.state.replace(' ', '-');
+      const word = st.state[0].toUpperCase() + st.state.slice(1);
+      pill = `<div class="body-pill ${cls}"><span class="dot"></span>${word} ${fmtSigned(st.diff)} ${m.unit}</div>`;
+    } else if (st && m.target) {
+      pill = `<div class="body-pill"><span class="dot"></span>${BODY.targets.length ? 'Before plan start' : 'No plan set'}</div>`;
+    }
+    const meta = !st ? 'No data'
+      : st.avg ? `7-day avg · ${st.n} weigh-in${st.n === 1 ? '' : 's'} · ${fmtDM(st.date)}`
+      : fmtDM(st.date);
+    const tgt = st?.target != null ? ` · target ${fmtNo(st.target)}${st.afterEnd ? ' (final)' : ''}` : '';
+    html += `<div class="body-stat${i === 0 ? ' primary' : ''}">
+      <div class="body-stat-lbl">${m.label}</div>
+      <div class="body-stat-val">${st ? fmtNo(st.v) : '–'}<small>${m.unit}</small></div>
+      <div class="body-stat-meta">${meta}${tgt}</div>${pill}</div>`;
+  });
+  if (next) {
+    const parts = TARGET_KEYS.map(k => {
+      const m = BODY_METRICS.find(x => x.key === k);
+      return next[k] != null ? `${m.label.toLowerCase()} ${fmtNo(next[k])}` : null;
+    }).filter(Boolean);
+    html += `<div class="body-sub" style="grid-column:1/-1">Next checkpoint ${fmtDM(next.date, true)}: ${parts.join(' · ')}</div>`;
+  } else if (!BODY.targets.length) {
+    html += `<div class="body-sub" style="grid-column:1/-1">No target plan yet — tap 🎯 to add your checkpoints.</div>`;
+  }
+  el.innerHTML = html;
+}
+
+function renderBodyCharts() {
+  document.querySelectorAll('#body-range button').forEach(b => b.classList.toggle('on', b.dataset.range === BODY.range));
+  const wrap = document.getElementById('body-charts');
+  wrap.innerHTML = '';
+  for (const m of BODY_METRICS) {
+    const pts = bodySeries(BODY.list, m.key);
+    const tps = m.target ? targetPoints(BODY.targets, m.key) : [];
+    if (!pts.length && !tps.length) continue;
+    const card = document.createElement('div');
+    card.className = 'body-card';
+    card.innerHTML = `<div class="body-card-hdr"><span class="body-card-title">${m.label} (${m.unit})</span></div>`;
+    card.appendChild(buildBodyChart(m, pts, tps));
+    wrap.appendChild(card);
+  }
+}
+
+function niceStep(span, n) {
+  const raw = span / n, p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const f = raw / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+}
+
+function buildBodyChart(m, pts, tps) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const W = 360, H = 170, L = 34, R = 8, T = 10, B = 22;
+  const today = dayNum(localISO());
+  const isW = m.key === 'weight_kg';
+  const avg = isW ? weightAvg7(BODY.list) : [];
+  const days = [...pts.map(p => p.day), ...tps.map(p => p.day)];
+  let x0, x1;
+  if (BODY.range === 'plan' && tps.length) {
+    x0 = tps[0].day - 14;
+    x1 = Math.max(tps.at(-1).day, pts.at(-1)?.day ?? 0) + 2;
+  } else if (BODY.range === 'plan') {
+    x1 = Math.max(today, ...days) + 2; x0 = x1 - 92;
+  } else {
+    x0 = Math.min(...days) - 2; x1 = Math.max(today, ...days) + 2;
+  }
+  const inX = p => p.day >= x0 && p.day <= x1;
+  const vis = [...pts.filter(inX), ...tps.filter(inX), ...avg.filter(inX)].map(p => p.v);
+  for (const d of [x0, x1]) { const t = m.target && targetAt(BODY.targets, m.key, d); if (t) vis.push(t.v); }
+  if (!vis.length) vis.push(...pts.map(p => p.v), ...tps.map(p => p.v));
+  let lo = Math.min(...vis), hi = Math.max(...vis);
+  const minSpan = m.unit === 'mm' ? 4 : 3;
+  if (hi - lo < minSpan) { const c = (hi + lo) / 2; lo = c - minSpan / 2; hi = c + minSpan / 2; }
+  const step = niceStep(hi - lo, 4);
+  lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
+  const X = d => L + (d - x0) / (x1 - x0) * (W - L - R);
+  const Y = v => T + (hi - v) / (hi - lo) * (H - T - B);
+
+  const el = (tag, attrs, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    parent?.appendChild(e);
+    return e;
+  };
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `${m.label} trend` });
+  const clipId = `clip-${m.key}`;
+  el('rect', { x: L, y: 0, width: W - L - R, height: H - B + 1 }, el('clipPath', { id: clipId }, svg));
+
+  for (let v = lo; v <= hi + 1e-9; v += step) {
+    el('line', { x1: L, x2: W - R, y1: Y(v), y2: Y(v), stroke: 'var(--border)', 'stroke-width': 1 }, svg);
+    el('text', { x: L - 5, y: Y(v) + 3, 'text-anchor': 'end', class: 'ax' }, svg).textContent = fmtNo(v, step < 1 ? 1 : 0);
+  }
+  const xStep = Math.max(7, Math.ceil((x1 - x0) / 4 / 7) * 7);
+  for (let d = Math.ceil(x0); d <= x1; d += xStep) {
+    el('text', { x: X(d), y: H - 6, 'text-anchor': 'middle', class: 'ax' }, svg).textContent = fmtDM(isoFromDay(d));
+  }
+  if (today >= x0 && today <= x1) {
+    el('line', { x1: X(today), x2: X(today), y1: T, y2: H - B, stroke: 'var(--muted)', 'stroke-width': 1, 'stroke-dasharray': '2 3', opacity: 0.6 }, svg);
+  }
+  const g = el('g', { 'clip-path': `url(#${clipId})` }, svg);
+  const poly = (arr, attrs) => arr.length > 1 && el('polyline', {
+    points: arr.map(p => `${X(p.day).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' '),
+    fill: 'none', 'stroke-linejoin': 'round', 'stroke-linecap': 'round', ...attrs }, g);
+  poly(tps, { stroke: 'var(--muted)', 'stroke-width': 2, 'stroke-dasharray': '6 4' });
+  if (isW) {
+    for (const p of pts) el('circle', { cx: X(p.day), cy: Y(p.v), r: 3, fill: 'var(--accent)', opacity: 0.45 }, g);
+    poly(avg, { stroke: 'var(--accent)', 'stroke-width': 2 });
+  } else {
+    poly(pts, { stroke: 'var(--accent)', 'stroke-width': 2, opacity: 0.7 });
+    for (const p of pts) el('circle', { cx: X(p.day), cy: Y(p.v), r: 4, fill: 'var(--accent)', stroke: 'var(--surface)', 'stroke-width': 2 }, g);
+  }
+  const cross = el('line', { y1: T, y2: H - B, stroke: 'var(--text)', 'stroke-width': 1, opacity: 0, 'pointer-events': 'none' }, svg);
+
+  const box = document.createElement('div');
+  box.className = 'body-chart';
+  box.appendChild(svg);
+  const tip = document.createElement('div');
+  tip.className = 'body-tip';
+  box.appendChild(tip);
+
+  // Legend (only when there's more than one series)
+  const leg = [];
+  if (isW) leg.push('<span><i></i>7-day avg</span>', '<span><i class="raw"></i>Weigh-ins</span>');
+  else if (tps.length) leg.push('<span><i></i>Measured</span>');
+  if (tps.length) leg.push('<span><i class="tgt"></i>Target</span>');
+  if (leg.length > 1) {
+    const l = document.createElement('div');
+    l.className = 'body-legend';
+    l.innerHTML = leg.join('');
+    box.appendChild(l);
+  }
+
+  // Crosshair + tooltip: snap to the nearest measurement
+  const snap = isW ? avg : pts;
+  const onMove = e => {
+    if (!snap.length) return;
+    const rect = svg.getBoundingClientRect();
+    const sx = (e.clientX - rect.left) / rect.width * W;
+    const d = x0 + (sx - L) / (W - L - R) * (x1 - x0);
+    let best = null;
+    for (const p of snap) if (inX(p) && (!best || Math.abs(p.day - d) < Math.abs(best.day - d))) best = p;
+    if (!best) return;
+    cross.setAttribute('x1', X(best.day)); cross.setAttribute('x2', X(best.day)); cross.setAttribute('opacity', 0.4);
+    const t = m.target ? targetAt(BODY.targets, m.key, isW ? best.mid : best.day) : null;
+    const raw = isW ? pts.find(p => p.day === best.day) : null;
+    tip.innerHTML = '';
+    const line = (txt, bold) => { const s = document.createElement(bold ? 'b' : 'div'); s.textContent = txt; tip.appendChild(s); };
+    line(`${fmtNo(best.v)} ${m.unit}`, true);
+    line(fmtDM(best.date, true) + (isW ? ` · avg of ${best.n}` : ''));
+    if (raw) line(`weigh-in ${fmtNo(raw.v)} kg`);
+    if (t) line(`target ${fmtNo(t.v)} · ${fmtSigned(best.v - t.v)}`);
+    tip.style.display = 'block';
+    // Sit inside the plot, on the side away from the crosshair
+    const px = X(best.day) / W * rect.width;
+    const left = px < rect.width / 2 ? px + 10 : px - 10 - tip.offsetWidth;
+    tip.style.left = `${Math.min(Math.max(left, 0), rect.width - tip.offsetWidth)}px`;
+    tip.style.top = `${T / H * rect.height + 2}px`;
+  };
+  const onLeave = () => { tip.style.display = 'none'; cross.setAttribute('opacity', 0); };
+  svg.addEventListener('pointermove', onMove);
+  svg.addEventListener('pointerdown', onMove);
+  svg.addEventListener('pointerleave', onLeave);
+  return box;
+}
+
+function renderBodyHist() {
+  const el = document.getElementById('body-hist');
+  const rows = [...BODY.list].reverse().slice(0, 60);
+  if (!rows.length) { el.innerHTML = '<p class="body-sub">No measurements yet.</p>'; return; }
+  el.innerHTML = '';
+  for (const r of rows) {
+    const item = document.createElement('div');
+    item.className = 'body-hist-item';
+    const vals = BODY_METRICS.filter(m => r[m.key] != null)
+      .map(m => `${m.label.toLowerCase()} <b>${fmtNo(r[m.key])}</b>`).join(' · ');
+    item.innerHTML = `<div class="body-hist-date">${fmtDM(r.date, true)}${!r.synced && authUser ? ' <span class="body-unsynced" title="Not synced yet">●</span>' : ''}</div>
+      <div class="body-hist-vals">${vals}${r.note ? `<br>${esc(r.note)}` : ''}</div>
+      <button class="body-del" title="Delete">×</button>`;
+    item.onclick = () => { fillBodyForm(r.date); document.querySelector('#body .body-body').scrollTo({ top: 0, behavior: 'smooth' }); };
+    item.querySelector('.body-del').onclick = e => { e.stopPropagation(); deleteBodyEntry(r.date); };
+    el.appendChild(item);
+  }
+}
+
+function renderBodyPlan() {
+  const el = document.getElementById('body-plan-list');
+  if (!BODY.targets.length) { el.innerHTML = '<p class="body-sub">No checkpoints yet.</p>'; return; }
+  const ms = TARGET_KEYS.map(k => BODY_METRICS.find(m => m.key === k));
+  el.innerHTML = `<table class="body-plan-table"><thead><tr><th>Date</th>${ms.map(m => `<th>${m.short} ${m.unit}</th>`).join('')}<th></th></tr></thead><tbody>${
+    BODY.targets.map(t => `<tr><td>${fmtDM(t.date, true)}</td>${ms.map(m => `<td>${fmtNo(t[m.key])}</td>`).join('')}
+      <td><button class="body-del" onclick="deleteBodyTarget('${t.date}')" title="Delete">×</button></td></tr>`).join('')
+  }</tbody></table>`;
+}
+
+async function applyBodyPlan(replace) {
+  const ta = document.getElementById('body-plan-text');
+  const { rows, errors } = parsePlanText(ta.value);
+  if (errors.length) { alert('Could not read:\n' + errors.join('\n')); return; }
+  if (!rows.length) { showToast('Paste at least one checkpoint'); return; }
+  if (replace) {
+    if (BODY.targets.length && !confirm(`Replace all ${BODY.targets.length} checkpoints with ${rows.length} new ones?`)) return;
+    const keep = new Set(rows.map(r => r.date));
+    for (const t of BODY.targets) if (!keep.has(t.date)) await bodyRemove(TARGET_STORE, t.date);
+  }
+  await bodyPut(TARGET_STORE, rows);
+  clearCoachCache();
+  ta.value = '';
+  showToast(`Plan: ${rows.length} checkpoint${rows.length === 1 ? '' : 's'} saved`);
+  renderBody();
+  renderBodyHomeCard();
+}
+
+async function deleteBodyTarget(date) {
+  if (!confirm(`Delete checkpoint ${fmtDM(date, true)}?`)) return;
+  await bodyRemove(TARGET_STORE, date);
+  clearCoachCache();
+  renderBody();
+  renderBodyHomeCard();
+}
+
+async function importBodyCsv(input) {
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  const { rows, errors } = parseBodyCsv(await file.text());
+  if (!rows.length) { alert('No rows found.' + (errors.length ? '\n' + errors.slice(0, 10).join('\n') : '')); return; }
+  const existing = new Map(BODY.list.map(r => [r.date, r]));
+  const overlap = rows.filter(r => existing.has(r.date)).length;
+  const msg = `Import ${rows.length} rows (${fmtDM(rows[0].date, true)} – ${fmtDM(rows.at(-1).date, true)})?`
+    + (overlap ? `\n${overlap} dates already exist: imported values replace them, blank cells keep the existing value.` : '')
+    + (errors.length ? `\n\n${errors.length} cells/rows skipped:\n${errors.slice(0, 8).join('\n')}` : '');
+  if (!confirm(msg)) return;
+  // Merge: blank cells keep any existing value for that date
+  const recs = rows.map(r => {
+    const base = existing.get(r.date) ?? { date: r.date, note: null };
+    const rec = { date: r.date, note: base.note ?? null };
+    for (const m of BODY_METRICS) rec[m.key] = r[m.key] ?? base[m.key] ?? null;
+    return rec;
+  });
+  await bodyPut(BODY_STORE, recs);
+  clearCoachCache();
+  showToast(`Imported ${recs.length} rows`);
+  renderBody();
+  renderBodyHomeCard();
 }
 
 // ── BOOT ──────────────────────────────────────────────────────────────────

@@ -37,10 +37,11 @@ Deno.serve(async (req: Request) => {
     if (authErr || !user) return jsonResp({ error: 'Unauthorized' }, 401)
 
     const body = await req.json()
-    const { type, exercises, rich_logs } = body as {
+    const { type, exercises, rich_logs, body_comp } = body as {
       type: string;
       exercises: { id: string; name: string; unit: string }[];
       rich_logs?: { date: string; notes?: string; activity?: unknown }[];
+      body_comp?: BodyComp | null;
     }
     if (!type || !exercises?.length) return jsonResp({ error: 'Missing type or exercises' }, 400)
 
@@ -168,6 +169,8 @@ Deno.serve(async (req: Request) => {
       })
       .join('\n')
 
+    const bodyCompText = formatBodyComp(body_comp)
+
     const today = new Date().toLocaleDateString('en-GB')
     const userMessage =
       `Today: ${today}. Athlete: ${name}. Session type: ${type}.
@@ -175,7 +178,7 @@ Deno.serve(async (req: Request) => {
 Recent sessions (last 15, all types):
 ${sessionListText}
 ${dailyLogText ? `\nDaily logs (last 30 days):\n${dailyLogText}\n` : ''}
-Exercise history (all sets per session shown as "weight×reps, weight×reps"; last 2 weeks all types + previous ${type} session; date[type] — use cross-type data for sibling movements):
+${bodyCompText ? `${bodyCompText}\n\n` : ''}Exercise history (all sets per session shown as "weight×reps, weight×reps"; last 2 weeks all types + previous ${type} session; date[type] — use cross-type data for sibling movements):
 ${exerciseLines}
 
 Generate the session brief and per-exercise suggestions for all listed exercises.`
@@ -233,4 +236,53 @@ function daysAgo(n: number): string {
   const d = new Date()
   d.setDate(d.getDate() - n)
   return d.toISOString().slice(0, 10)
+}
+
+// ── Body composition (optional, sent by the client) ──────────────────────────
+
+type BodyPoint = { v?: number | null; date?: string; n?: number }
+type BodyComp = {
+  latest?: Record<string, BodyPoint>
+  trend?: Record<string, { d14?: number | null; d28?: number | null }>
+  status?: Record<string, { v?: number; target?: number; diff?: number; state?: string; after_plan_end?: boolean }>
+}
+
+const BODY_LABELS: Record<string, [string, string]> = {
+  waist_cm: ['Waist', 'cm'],
+  weight_kg: ['Weight (7-day avg)', 'kg'],
+  suprailiac_mm: ['Suprailiac skinfold', 'mm'],
+  abdominal_mm: ['Abdominal skinfold', 'mm'],
+  chest_mm: ['Chest skinfold', 'mm'],
+  triceps_mm: ['Triceps skinfold', 'mm'],
+}
+
+const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+const signed = (v: number) => `${v > 0 ? '+' : ''}${Math.round(v * 100) / 100}`
+
+/** Compact text block for the prompt, or '' when there is no usable body-comp data. */
+function formatBodyComp(bc: BodyComp | null | undefined): string {
+  if (!bc || typeof bc !== 'object' || !bc.latest || typeof bc.latest !== 'object') return ''
+  const lines: string[] = []
+  for (const [key, [label, unit]] of Object.entries(BODY_LABELS)) {
+    const latest = key === 'weight_kg' ? (bc.latest.weight_avg7_kg ?? bc.latest.weight_kg) : bc.latest[key]
+    const v = num(latest?.v)
+    if (v == null) continue
+    const date = typeof latest?.date === 'string' ? latest.date.slice(0, 10) : '?'
+    const parts = [`${label}: ${v} ${unit} (${date})`]
+    const tr = bc.trend?.[key]
+    const d14 = num(tr?.d14), d28 = num(tr?.d28)
+    if (d14 != null || d28 != null) {
+      parts.push(`change ${[d14 != null ? `14d ${signed(d14)}` : '', d28 != null ? `28d ${signed(d28)}` : ''].filter(Boolean).join(', ')}`)
+    }
+    const st = bc.status?.[key]
+    const tgt = num(st?.target), diff = num(st?.diff)
+    if (tgt != null && diff != null && typeof st?.state === 'string') {
+      parts.push(`plan target ${tgt}${st.after_plan_end ? ' (final)' : ''} → ${st.state.slice(0, 20)} (${signed(diff)})`)
+    }
+    lines.push(`- ${parts.join('; ')}`)
+  }
+  if (!lines.length) return ''
+  return `Body composition (fat-loss cut; lower is better for all; no scale body-fat %):
+${lines.join('\n')}
+User is in a moderate deficit (~0.5 kg/week); preserve strength, keep volume slightly conservative, prioritise recovery.`
 }
