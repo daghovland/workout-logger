@@ -58,6 +58,8 @@ fun HomeScreen(
     onShowHistory: () -> Unit,
     onShowProfile: () -> Unit,
     onShowChat: () -> Unit,
+    onShowBody: () -> Unit = {},
+    bodySummary: String = "",
 ) {
     val state by vm.home.collectAsState()
     val colors = LocalWorkoutColors.current
@@ -148,6 +150,27 @@ fun HomeScreen(
             onAdd   = { vm.incrementDeclineSquat() },
             onUndo  = { vm.decrementDeclineSquat() },
         )
+
+        // ── Body composition ─────────────────────────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(colors.surface)
+                .border(1.dp, colors.border, RoundedCornerShape(12.dp))
+                .clickable(onClick = onShowBody)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("📏 Body", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.text)
+            Spacer(Modifier.width(10.dp))
+            Text(
+                bodySummary,
+                modifier = Modifier.weight(1f),
+                fontSize = 12.sp, color = colors.muted,
+                textAlign = androidx.compose.ui.text.style.TextAlign.End,
+            )
+        }
 
         // ── Samsung Health snapshot (if available) ───────────────────────
         state.healthSnapshot?.let { snap ->

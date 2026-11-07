@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -25,6 +26,7 @@ import no.daglifts.workout.data.model.HealthSnapshot
 import no.daglifts.workout.data.model.HomeBriefResponse
 import no.daglifts.workout.data.model.Session
 import no.daglifts.workout.data.model.SetInputs
+import no.daglifts.workout.repository.BodyRepository
 import no.daglifts.workout.repository.SamsungHealthRepository
 import no.daglifts.workout.repository.SupabaseRepository
 import no.daglifts.workout.repository.WorkoutRepository
@@ -75,6 +77,7 @@ class WorkoutViewModel(
     private val workoutRepo: WorkoutRepository,
     private val supabaseRepo: SupabaseRepository,
     private val healthRepo: SamsungHealthRepository,
+    private val bodyRepo: BodyRepository,
 ) : ViewModel() {
 
     private val _home = MutableStateFlow(HomeUiState())
@@ -115,6 +118,9 @@ class WorkoutViewModel(
                 else _home.update { it.copy(homeBrief = null) }
             }
         }
+        // New body measurements/targets change the coach's context → drop today's cached suggestions
+        // (drop(1): skip the current value; later emissions only happen after construction)
+        viewModelScope.launch { bodyRepo.changes.drop(1).collect { coachCache.clear() } }
     }
 
     // ── Home ───────────────────────────────────────────────────────────────────
@@ -217,6 +223,7 @@ class WorkoutViewModel(
     }
 
     private suspend fun onSignedIn() {
+        viewModelScope.launch { bodyRepo.sync() }
         syncPending()
         refreshHomeBrief()
         loadChatHistoryFromSupabase()
@@ -456,6 +463,7 @@ class WorkoutViewModel(
             exerciseNames  = exs.map { it.name },
             exerciseUnits  = exs.map { it.unit ?: "BW" },
             richLogs       = buildRichLogsPayload(),
+            bodyComp       = runCatching { bodyRepo.coachPayload() }.getOrNull(),
         )
         if (result != null && result.error == null) coachCache[key] = result
         return result
@@ -580,6 +588,7 @@ class WorkoutViewModelFactory(private val context: Context) : ViewModelProvider.
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         val app = context.applicationContext as no.daglifts.workout.WorkoutApp
-        return WorkoutViewModel(app.workoutRepo, app.supabaseRepo, app.healthRepo) as T
+        if (modelClass.isAssignableFrom(BodyViewModel::class.java)) return BodyViewModel(app.bodyRepo) as T
+        return WorkoutViewModel(app.workoutRepo, app.supabaseRepo, app.healthRepo, app.bodyRepo) as T
     }
 }

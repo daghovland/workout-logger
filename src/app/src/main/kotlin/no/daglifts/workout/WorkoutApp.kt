@@ -5,7 +5,9 @@ import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.functions.Functions
 import io.github.jan.supabase.postgrest.Postgrest
+import no.daglifts.workout.data.db.BodyDatabase
 import no.daglifts.workout.data.db.WorkoutDatabase
+import no.daglifts.workout.repository.BodyRepository
 import no.daglifts.workout.repository.SamsungHealthRepository
 import no.daglifts.workout.repository.SupabaseRepository
 import no.daglifts.workout.repository.WorkoutRepository
@@ -43,6 +45,10 @@ class WorkoutApp : Application() {
     }
 
     val supabaseRepo by lazy { SupabaseRepository(supabaseClient) }
+
+    val bodyDatabase by lazy { BodyDatabase.getInstance(this) }
+
+    val bodyRepo by lazy { BodyRepository(bodyDatabase.bodyDao(), supabaseRepo) }
 
     val healthRepo by lazy { SamsungHealthRepository(this) }
 }

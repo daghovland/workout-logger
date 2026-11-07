@@ -19,6 +19,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import no.daglifts.workout.data.SessionType
+import no.daglifts.workout.data.body.BodyCalc
+import no.daglifts.workout.data.body.BodyMetric
+import no.daglifts.workout.ui.BodyScreen
 import no.daglifts.workout.ui.ChatScreen
 import no.daglifts.workout.ui.HistoryScreen
 import no.daglifts.workout.ui.HomeScreen
@@ -29,6 +32,7 @@ import no.daglifts.workout.ui.theme.AccentGym
 import no.daglifts.workout.ui.theme.AccentNoEquip
 import no.daglifts.workout.ui.theme.AccentOutdoor
 import no.daglifts.workout.ui.theme.WorkoutTheme
+import no.daglifts.workout.viewmodel.BodyViewModel
 import no.daglifts.workout.viewmodel.SessionUiState
 import no.daglifts.workout.viewmodel.WorkoutViewModel
 import no.daglifts.workout.viewmodel.WorkoutViewModelFactory
@@ -37,6 +41,7 @@ import androidx.compose.material3.Scaffold as Scaffold
 class MainActivity : ComponentActivity() {
 
     private val vm: WorkoutViewModel by viewModels { WorkoutViewModelFactory(this) }
+    private val bodyVm: BodyViewModel by viewModels { WorkoutViewModelFactory(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,7 +54,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            WorkoutApp(vm)
+            WorkoutApp(vm, bodyVm)
         }
     }
 
@@ -65,9 +70,17 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun WorkoutApp(vm: WorkoutViewModel) {
+fun WorkoutApp(vm: WorkoutViewModel, bodyVm: BodyViewModel) {
     val sessionState by vm.session.collectAsState()
     val homeState    by vm.home.collectAsState()
+    val bodyEntries  by bodyVm.entries.collectAsState()
+    val bodyTargets  by bodyVm.targets.collectAsState()
+    val bodySummary = remember(bodyEntries, bodyTargets) {
+        BodyCalc.status(bodyEntries, bodyTargets, BodyMetric.WAIST)?.let { st ->
+            "Waist ${BodyCalc.fmt(st.value)} cm" +
+                (st.state?.let { s -> " · ${s.label.lowercase()} (${BodyCalc.fmtSigned(st.diff)})" } ?: "")
+        } ?: "Log weight, waist, skinfolds"
+    }
 
     // Derive accent colour from active session type
     val accent = when {
@@ -84,12 +97,19 @@ fun WorkoutApp(vm: WorkoutViewModel) {
         val navController = rememberNavController()
         val snackbarHostState = remember { SnackbarHostState() }
         val toast by vm.toast.collectAsState()
+        val bodyToast by bodyVm.toast.collectAsState()
 
         // Show toasts as snackbars
         LaunchedEffect(toast) {
             toast?.let {
                 snackbarHostState.showSnackbar(it)
                 vm.clearToast()
+            }
+        }
+        LaunchedEffect(bodyToast) {
+            bodyToast?.let {
+                bodyVm.clearToast()
+                snackbarHostState.showSnackbar(it)
             }
         }
 
@@ -120,6 +140,8 @@ fun WorkoutApp(vm: WorkoutViewModel) {
                         onShowHistory  = { navController.navigate("history") },
                         onShowProfile  = { navController.navigate("profile") },
                         onShowChat     = { navController.navigate("chat") },
+                        onShowBody     = { navController.navigate("body") },
+                        bodySummary    = bodySummary,
                     )
                 }
                 composable("session") {
@@ -153,6 +175,9 @@ fun WorkoutApp(vm: WorkoutViewModel) {
                 }
                 composable("chat") {
                     ChatScreen(vm = vm, onBack = { navController.popBackStack() })
+                }
+                composable("body") {
+                    BodyScreen(vm = bodyVm, onBack = { navController.popBackStack() })
                 }
             }
         }

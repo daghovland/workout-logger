@@ -12,7 +12,11 @@ import io.ktor.client.call.body
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
@@ -212,6 +216,53 @@ class SupabaseRepository(private val client: SupabaseClient) {
         }
     }
 
+    // ── Body composition (body_measurements / body_targets) ──────────────────
+
+    /** Upsert rows keyed on (user_id, date). Each row must contain "date"; user_id is added here. */
+    suspend fun upsertBodyRows(table: String, rows: List<JsonObject>): Boolean {
+        val user = client.auth.currentUserOrNull() ?: return false
+        if (rows.isEmpty()) return true
+        return try {
+            val withUser = rows.map { JsonObject(it + ("user_id" to JsonPrimitive(user.id))) }
+            client.from(table).upsert(withUser) { onConflict = "user_id,date" }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "upsertBodyRows($table) failed", e)
+            false
+        }
+    }
+
+    suspend fun deleteBodyRows(table: String, dates: List<String>): Boolean {
+        val user = client.auth.currentUserOrNull() ?: return false
+        if (dates.isEmpty()) return true
+        return try {
+            client.from(table).delete {
+                filter {
+                    eq("user_id", user.id)
+                    isIn("date", dates)
+                }
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteBodyRows($table) failed", e)
+            false
+        }
+    }
+
+    /** All of the user's rows, or null if the request failed (so callers don't treat it as "empty"). */
+    suspend fun fetchBodyRows(table: String, columns: List<String>): List<RemoteBodyRow>? {
+        val user = client.auth.currentUserOrNull() ?: return null
+        return try {
+            client.from(table)
+                .select(columns = Columns.list(*(listOf("date", "updated_at") + columns).toTypedArray())) {
+                    filter { eq("user_id", user.id) }
+                }.decodeList<RemoteBodyRow>()
+        } catch (e: Exception) {
+            Log.e(TAG, "fetchBodyRows($table) failed", e)
+            null
+        }
+    }
+
     // ── AI edge functions ─────────────────────────────────────────────────────
 
     suspend fun fetchCoach(
@@ -220,6 +271,7 @@ class SupabaseRepository(private val client: SupabaseClient) {
         exerciseNames: List<String>,
         exerciseUnits: List<String>,
         richLogs: List<Map<String, String>>,
+        bodyComp: Map<String, Any?>? = null,
     ): CoachResponse? {
         return try {
             val body = buildJsonObject {
@@ -234,6 +286,7 @@ class SupabaseRepository(private val client: SupabaseClient) {
                     }
                 }
                 put("rich_logs", Json.encodeToJsonElement(richLogs))
+                bodyComp?.let { put("body_comp", toJson(it)) }
             }
             client.functions.invoke("session-coach", body = body).body<CoachResponse>()
         } catch (e: Exception) {
@@ -338,6 +391,18 @@ class SupabaseRepository(private val client: SupabaseClient) {
         @SerialName("logged_at")   val loggedAt: String? = null,
     )
 
+    @Serializable data class RemoteBodyRow(
+        val date: String,
+        @SerialName("updated_at")    val updatedAt: String? = null,
+        @SerialName("weight_kg")     val weightKg: Double? = null,
+        @SerialName("waist_cm")      val waistCm: Double? = null,
+        @SerialName("suprailiac_mm") val suprailiacMm: Double? = null,
+        @SerialName("abdominal_mm")  val abdominalMm: Double? = null,
+        @SerialName("chest_mm")      val chestMm: Double? = null,
+        @SerialName("triceps_mm")    val tricepsMm: Double? = null,
+        val note: String? = null,
+    )
+
     @Serializable data class RemoteDailyLog(
         val id: Long? = null,
         val date: String,
@@ -376,4 +441,17 @@ private fun SupabaseRepository.RemoteSessionFull.toSession(
         notes      = notes,
         synced     = true,
     )
+}
+
+// ── JSON helper: plain Kotlin maps/lists/numbers → JsonElement ────────────────
+
+internal fun toJson(v: Any?): JsonElement = when (v) {
+    null -> JsonNull
+    is JsonElement -> v
+    is String -> JsonPrimitive(v)
+    is Number -> JsonPrimitive(v)
+    is Boolean -> JsonPrimitive(v)
+    is Map<*, *> -> JsonObject(v.entries.associate { (k, x) -> k.toString() to toJson(x) })
+    is List<*> -> JsonArray(v.map { toJson(it) })
+    else -> JsonPrimitive(v.toString())
 }

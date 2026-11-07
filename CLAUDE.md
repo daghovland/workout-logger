@@ -43,6 +43,13 @@ Exercises and default working weights are defined in `GYM_EXERCISES`, `STREET_EX
 - System prompt is personalized for Dag: patellar tendon rupture rehab history, Norwegian lifter context
 - Session data is injected into the greeting prompt for context
 
+### Body composition
+- Supabase tables `body_measurements` / `body_targets` (one row per user+date, RLS like `sessions`); migration `20261107000000_body_comp.sql`
+- PWA: IndexedDB v2 stores `body` + `body_targets` keyed by date, `synced`/`remote`/`deleted` flags; `syncBody()` runs at startup and after each save. Calculations (`targetAt`, `weightAvg7`, `bodyStatus`, `buildBodyCompPayload`) are pure functions in the BODY COMPOSITION section
+- Android: same logic in `data/body/BodyCalc.kt`; separate Room DB `daglifts_body.db` (deliberately not a migration of the session DB)
+- Target plan is user data entered in the app (🎯 Plan) — never hard-code personal targets in the repo
+- `session-coach` accepts an optional `body_comp` object and only then adds the body-comp block + deficit line to the prompt
+
 ## Deployment
 
 GitHub Pages serves from `/docs`. No CI needed — push to `main` and it's live.
