@@ -3,7 +3,9 @@ import { CORS_HEADERS, jsonResp, buildPrompt } from '../_shared/coach-context.ts
 
 const TASK_PROMPT = `Given the athlete's training history, daily logs, and today's session, return a JSON object with a session brief and per-exercise suggestions.
 
-Factor in daily logs: poor sleep or heavy activity outside the gym should prompt modest load targets.
+Factor in daily logs only when they signal a real problem (sleep under 6h, illness, heavy physical work the day before, knee pain). Otherwise ignore them and progress normally.
+
+Weight targets: for each weighted exercise, suggest the load the athlete can realistically lift for the target reps with about 1–2 reps in reserve — a small step beyond the best recent working set, not a repeat of the last session by default. Base it on the BEST recent working sets (and trends across several sessions), not just the most recent one. Only repeat or lower the weight when there is a concrete reason (reps fell, a grind note, pain, bad sleep), and name that reason in the note. For exercises with no history, estimate from related lifts in the history instead of defaulting to a beginner weight.
 
 Session brief: 2–3 sentences, plain text, no markdown, max 80 words. Include today's priority lifts, one technical focus, and any recovery consideration from recent logs.
 
@@ -189,7 +191,7 @@ Generate the session brief and per-exercise suggestions for all listed exercises
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-5',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1200,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
