@@ -27,30 +27,71 @@ data class ExerciseGroup(
     val exercises: List<Exercise>,
 )
 
+data class VariantGroup(
+    val name: String,
+    val variants: LinkedHashMap<String, String>, // label ("BB"/"DB") -> exercise id
+)
+
+private val OHP_WARMUP = listOf(
+    "Band pull-aparts × 15",
+    "Face pulls × 15",
+    "External rotation × 12 each",
+    "Prone Y/T/W × 10",
+)
+
 object ExerciseDefinitions {
 
     val GYM_REHAB = listOf(
         Exercise("rdl_sling",  "Single-leg RDL (sling)",    "kg",  2.0),
         Exercise("leg_ext_hs", "Leg Ext – Hammer Strength", "kg",  2.5),
         Exercise("leg_ext_tg", "Leg Ext – Technogym",       "kg",  2.5),
-        Exercise("step_ups",   "Step-ups BB",               "kg",  5.0),
+        Exercise("step_ups",    "Step-ups BB",              "kg",     5.0),
+        Exercise("step_ups_db", "Step-ups DB",              "kg/arm", 2.0),
         Exercise("side_plank", "Side Plank (sling)",        null,  null),
     )
 
     val GYM_MAIN = listOf(
-        Exercise("deadlift", "Deadlift", "kg",     2.5),
-        Exercise("ohp",      "OHP",      "kg",     2.5,
-            checklist = listOf(
-                "Band pull-aparts × 15",
-                "Face pulls × 15",
-                "External rotation × 12 each",
-                "Prone Y/T/W × 10",
-            )
-        ),
-        Exercise("pullups",  "Pull-ups", "BW",     null),
-        Exercise("bb_row",   "BB Row",   "kg",     2.5),
-        Exercise("db_bench", "DB Bench", "kg/arm", 2.5),
+        Exercise("deadlift",    "Deadlift BB", "kg",     2.5),
+        Exercise("db_deadlift", "Deadlift DB", "kg/arm", 2.0),
+        Exercise("ohp",         "OHP BB",      "kg",     2.5, checklist = OHP_WARMUP),
+        Exercise("db_ohp",      "OHP DB",      "kg/arm", 2.0, checklist = OHP_WARMUP),
+        Exercise("pullups",     "Pull-ups",    "BW",     null),
+        Exercise("pulldown",    "Pull-down",   "kg",     2.5),
+        Exercise("bb_row",      "Row BB",      "kg",     2.5),
+        Exercise("db_row",      "Row DB",      "kg/arm", 2.0),
+        Exercise("bb_bench",    "Bench BB",    "kg",     2.5),
+        Exercise("db_bench",    "Bench DB",    "kg/arm", 1.0),
+        Exercise("leg_press",   "Leg Press",   "kg",     5.0),
     )
+
+    /**
+     * Barbell/dumbbell pairs shown as ONE card with a BB/DB selector (mirrors VARIANT_GROUPS
+     * in the PWA). Each variant keeps its own exercise id and therefore its own history.
+     */
+    val VARIANT_GROUPS = listOf(
+        VariantGroup("Step-ups", linkedMapOf("BB" to "step_ups", "DB" to "step_ups_db")),
+        VariantGroup("Deadlift", linkedMapOf("BB" to "deadlift", "DB" to "db_deadlift")),
+        VariantGroup("OHP",      linkedMapOf("BB" to "ohp",      "DB" to "db_ohp")),
+        VariantGroup("Row",      linkedMapOf("BB" to "bb_row",   "DB" to "db_row")),
+        VariantGroup("Bench",    linkedMapOf("BB" to "bb_bench", "DB" to "db_bench")),
+    )
+
+    private val _groupById: Map<String, VariantGroup> by lazy {
+        VARIANT_GROUPS.flatMap { g -> g.variants.values.map { it to g } }.toMap()
+    }
+
+    fun variantGroupOf(exId: String): VariantGroup? = _groupById[exId]
+
+    /** Collapse grouped variants to the selected one (default: first variant). */
+    fun displayExercises(list: List<Exercise>, variantSel: Map<String, String>): List<Exercise> {
+        val seen = mutableSetOf<String>()
+        return list.mapNotNull { ex ->
+            val g = variantGroupOf(ex.id) ?: return@mapNotNull ex
+            if (!seen.add(g.name)) return@mapNotNull null
+            val selId = variantSel[g.name] ?: g.variants.values.first()
+            list.firstOrNull { it.id == selId } ?: ex
+        }
+    }
 
     val OUTDOOR = listOf(
         Exercise("squat_m", "Squat Machine", "kg",      5.0,  asym = true),

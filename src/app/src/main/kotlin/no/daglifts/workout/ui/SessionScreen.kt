@@ -132,7 +132,7 @@ fun SessionScreen(
                             color = colors.muted, modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
                         )
                     }
-                    for (ex in group.exercises) {
+                    for (ex in ExerciseDefinitions.displayExercises(group.exercises, s.variantSel)) {
                         val sets = s.session.exercises[ex.id]?.sets ?: emptyList()
                         val inputs = s.inputs[ex.id] ?: SetInputs(reps = ex.defaultReps)
                         val suggestion = s.suggestions[ex.id]
@@ -145,6 +145,11 @@ fun SessionScreen(
                             suggestion = suggestion,
                             isOpen     = isOpen,
                             lastVal    = s.lastVals[ex.id],
+                            variantSetCounts = ExerciseDefinitions.variantGroupOf(ex.id)?.variants
+                                ?.mapValues { (_, id) -> s.session.exercises[id]?.sets?.size ?: 0 },
+                            onSelectVariant = { id ->
+                                ExerciseDefinitions.variantGroupOf(ex.id)?.let { vm.selectVariant(it.name, id) }
+                            },
                             onToggle   = { vm.openExercise(ex.id) },
                             onLogSet   = { vm.logSet(ex.id) },
                             onDeleteSet= { idx -> vm.deleteSet(ex.id, idx) },
@@ -194,6 +199,8 @@ private fun ExerciseCard(
     suggestion: SuggestionState?,
     isOpen: Boolean,
     lastVal: ExerciseSet?,
+    variantSetCounts: Map<String, Int>?,
+    onSelectVariant: (String) -> Unit,
     onToggle: () -> Unit,
     onLogSet: () -> Unit,
     onDeleteSet: (Int) -> Unit,
@@ -233,7 +240,24 @@ private fun ExerciseCard(
                 if (sets.isNotEmpty()) Text("✓", fontSize = 13.sp, color = colors.muted)
             }
             Column(Modifier.weight(1f)) {
-                Text(ex.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.text)
+                val group = ExerciseDefinitions.variantGroupOf(ex.id)
+                if (group != null) {
+                    val label = group.variants.entries.first { it.value == ex.id }.key
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(group.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.text)
+                        Text(
+                            label,
+                            fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
+                            color = colors.accent,
+                            modifier = Modifier
+                                .padding(start = 6.dp)
+                                .border(1.dp, colors.accent, RoundedCornerShape(4.dp))
+                                .padding(horizontal = 4.dp),
+                        )
+                    }
+                } else {
+                    Text(ex.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.text)
+                }
                 // Meta line: suggestion or last value
                 val metaText = when (suggestion) {
                     is SuggestionState.Loading -> "⚡ …"
@@ -267,6 +291,40 @@ private fun ExerciseCard(
                     .padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                // BB / DB selector
+                val group = ExerciseDefinitions.variantGroupOf(ex.id)
+                if (group != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(colors.surface2)
+                            .padding(3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        for ((label, id) in group.variants) {
+                            val active = id == ex.id
+                            val n = variantSetCounts?.get(label) ?: 0
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (active) colors.accent else Color.Transparent)
+                                    .clickable { onSelectVariant(id) }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    if (n > 0) "$label  ${n}×" else label,
+                                    fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
+                                    color = if (active) Color.Black else colors.muted,
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // AI tip
                 if (suggestion is SuggestionState.Ready && suggestion.suggestion.note != null) {
                     Text(

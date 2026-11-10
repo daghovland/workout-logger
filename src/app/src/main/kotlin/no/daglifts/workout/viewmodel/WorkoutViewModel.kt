@@ -48,6 +48,7 @@ sealed interface SessionUiState {
         val suggestions: Map<String, SuggestionState> = emptyMap(),
         val coachBrief: String? = null,
         val lastVals: Map<String, ExerciseSet> = emptyMap(),
+        val variantSel: Map<String, String> = emptyMap(), // variant group name -> selected exercise id
     ) : SessionUiState
     data class Summary(val session: Session, val type: SessionType) : SessionUiState
 }
@@ -273,6 +274,7 @@ class WorkoutViewModel(
             startTimeMs = now,
             lastVals   = lastVals,
             inputs     = inputs,
+            variantSel = buildVariantSel(),
         )
         viewModelScope.launch {
             loadCoachForSession(type)
@@ -282,6 +284,17 @@ class WorkoutViewModel(
     fun openExercise(exId: String) {
         val s = _session.value as? SessionUiState.Active ?: return
         _session.value = s.copy(openExerciseId = if (s.openExerciseId == exId) null else exId)
+    }
+
+    fun selectVariant(groupName: String, exId: String) {
+        val s = _session.value as? SessionUiState.Active ?: return
+        val prev = s.variantSel[groupName]
+            ?: ExerciseDefinitions.VARIANT_GROUPS.firstOrNull { it.name == groupName }?.variants?.values?.first()
+        if (prev == exId) return
+        _session.value = s.copy(
+            variantSel = s.variantSel + (groupName to exId),
+            openExerciseId = if (s.openExerciseId == prev) exId else s.openExerciseId,
+        )
     }
 
     fun updateInputs(exId: String, inputs: SetInputs) {
@@ -505,6 +518,18 @@ class WorkoutViewModel(
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
+
+    /** Default variant per group: the one used most recently in history, else the first (BB). */
+    private fun buildVariantSel(): Map<String, String> {
+        val all = sessions.value
+        return ExerciseDefinitions.VARIANT_GROUPS.associate { g ->
+            val ids = g.variants.values
+            val used = all.firstNotNullOfOrNull { session ->
+                ids.firstOrNull { !session.exercises[it]?.sets.isNullOrEmpty() }
+            }
+            g.name to (used ?: ids.first())
+        }
+    }
 
     private fun buildLastVals(type: SessionType): Map<String, ExerciseSet> {
         val all = sessions.value

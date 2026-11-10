@@ -290,6 +290,21 @@
     .ex-info { flex: 1; min-width: 0; }
     .ex-name { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .ex-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .var-tag {
+      font-size: 10px; font-weight: 700; letter-spacing: 1px; color: var(--accent);
+      border: 1px solid var(--accent); border-radius: 4px; padding: 0 4px; margin-left: 4px;
+      vertical-align: 2px;
+    }
+    .var-seg {
+      display: flex; gap: 4px; margin-top: 12px; padding: 3px;
+      background: var(--surface2); border-radius: 8px;
+    }
+    .var-btn {
+      flex: 1; padding: 8px 0; border: none; border-radius: 6px; background: transparent;
+      color: var(--muted); font: inherit; font-size: 13px; font-weight: 700; letter-spacing: 1px; cursor: pointer;
+    }
+    .var-btn.active { background: var(--accent); color: var(--bg); }
+    .var-btn small { font-weight: 600; opacity: 0.8; }
     .ex-sets-badge { font-size: 12px; color: var(--accent); font-weight: 700; flex-shrink: 0; }
     .ex-chev { color: var(--muted); font-size: 14px; transition: transform 0.2s; flex-shrink: 0; margin-left: 2px; }
     .excard.open .ex-chev { transform: rotate(180deg); }
@@ -889,13 +904,16 @@ const EXERCISES = {
       { id: 'side_plank', name: 'Side Plank (sling)',        unit: null,     step: null },
     ],
     main: [
-      { id: 'deadlift', name: 'Deadlift', unit: 'kg',     step: 2.5 },
-      { id: 'ohp',      name: 'OHP',      unit: 'kg',     step: 2.5 },
+      { id: 'deadlift',    name: 'Deadlift BB', unit: 'kg',     step: 2.5 },
+      { id: 'db_deadlift', name: 'Deadlift DB', unit: 'kg/arm', step: 2   },
+      { id: 'ohp',      name: 'OHP BB',   unit: 'kg',     step: 2.5 },
+      { id: 'db_ohp',   name: 'OHP DB',   unit: 'kg/arm', step: 2   },
       { id: 'pullups',  name: 'Pull-ups', unit: 'BW',     step: null },
       { id: 'pulldown', name: 'Pull-down', unit: 'kg',    step: 2.5 },
-      { id: 'bb_row',   name: 'BB Row',   unit: 'kg',     step: 2.5 },
-      { id: 'db_bench', name: 'DB Bench', unit: 'kg/arm', step: 1 },
-      { id: 'bb_bench', name: 'BB Bench', unit: 'kg',     step: 2.5 },
+      { id: 'bb_row',   name: 'Row BB',   unit: 'kg',     step: 2.5 },
+      { id: 'db_row',   name: 'Row DB',   unit: 'kg/arm', step: 2   },
+      { id: 'bb_bench', name: 'Bench BB', unit: 'kg',     step: 2.5 },
+      { id: 'db_bench', name: 'Bench DB', unit: 'kg/arm', step: 1 },
       { id: 'leg_press', name: 'Leg Press', unit: 'kg',    step: 5   },
     ],
   },
@@ -921,6 +939,65 @@ const EXERCISES = {
     { id: 'ne_pikepush', name: 'Pike Push-ups',            unit: 'BW',  step: null },
   ],
 };
+
+// Barbell/dumbbell pairs shown as ONE card with a BB/DB selector.
+// Each variant keeps its own exercise id (and therefore its own history),
+// since per-hand DB loads aren't comparable with barbell totals.
+const VARIANT_GROUPS = [
+  { name: 'Step-ups', variants: { BB: 'step_ups', DB: 'step_ups_db' } },
+  { name: 'Deadlift', variants: { BB: 'deadlift', DB: 'db_deadlift' } },
+  { name: 'OHP',      variants: { BB: 'ohp',      DB: 'db_ohp' } },
+  { name: 'Row',      variants: { BB: 'bb_row',   DB: 'db_row' } },
+  { name: 'Bench',    variants: { BB: 'bb_bench', DB: 'db_bench' } },
+];
+const VARIANT_GROUP_OF = {};
+for (const g of VARIANT_GROUPS) for (const id of Object.values(g.variants)) VARIANT_GROUP_OF[id] = g;
+
+// Which variant a group's card shows: one already logged this session,
+// else the one used most recently in history, else the first (BB).
+function pickVariant(g) {
+  const ids = Object.values(g.variants);
+  const logged = ids.find(id => getSets(id).length > 0);
+  if (logged) return logged;
+  for (const ps of S.sessions ?? []) {
+    if (ps.type === 'daily_log') continue;
+    const used = ids.find(id => ps.exercises?.[id]?.sets?.length);
+    if (used) return used;
+  }
+  return ids[0];
+}
+
+function initVariantSel() {
+  S.variantSel = {};
+  for (const g of VARIANT_GROUPS) S.variantSel[g.name] = pickVariant(g);
+}
+
+// Exercises to render as cards: grouped variants collapse to the selected one
+function displayExercises(list) {
+  const out = [];
+  const seen = new Set();
+  for (const ex of list) {
+    const g = VARIANT_GROUP_OF[ex.id];
+    if (!g) { out.push(ex); continue; }
+    if (seen.has(g.name)) continue;
+    seen.add(g.name);
+    const selId = S.variantSel?.[g.name] ?? pickVariant(g);
+    out.push(list.find(e => e.id === selId) ?? ex);
+  }
+  return out;
+}
+
+function selectVariant(groupName, exId) {
+  const g = VARIANT_GROUPS.find(g => g.name === groupName);
+  if (!g) return;
+  const prev = S.variantSel?.[groupName];
+  if (prev === exId) return;
+  saveInputs(S.openEx);
+  if (!S.variantSel) S.variantSel = {};
+  S.variantSel[groupName] = exId;
+  if (S.openEx === prev) S.openEx = exId;
+  renderSession();
+}
 
 // Exercises that share the same movement across session types
 // Only true siblings share the same movement pattern across session types.
@@ -1195,6 +1272,7 @@ async function restoreDraft(draft) {
   S.sessionStart = draft.sessionStart ?? Date.now();
   S.openEx = null; S.curInputs = {}; S.checklistState = {}; S.suggestions = {};
   S.lastVals = buildLastVals(draft.type);
+  initVariantSel();
   for (const ex of allExercises(draft.type)) S.curInputs[ex.id] = defaultInputs(ex);
   document.getElementById('session-title').textContent = sessionTitle(draft.type);
   document.getElementById('finish-btn').textContent = 'Finish Workout ✓';
@@ -1266,6 +1344,7 @@ async function startSession(type) {
   S.checklistState = {};
   S.lastVals = buildLastVals(type);
   S.suggestions = {};
+  initVariantSel();
 
   for (const ex of allExercises(type)) {
     S.curInputs[ex.id] = defaultInputs(ex);
@@ -1351,9 +1430,9 @@ function renderSession() {
 
   if (S.type === 'gym') {
     body.appendChild(makeLabel('REHAB'));
-    EXERCISES.gym.rehab.forEach(ex => body.appendChild(buildExCard(ex)));
+    displayExercises(EXERCISES.gym.rehab).forEach(ex => body.appendChild(buildExCard(ex)));
     body.appendChild(makeLabel('MAIN LIFTS'));
-    EXERCISES.gym.main.forEach(ex => body.appendChild(buildExCard(ex)));
+    displayExercises(EXERCISES.gym.main).forEach(ex => body.appendChild(buildExCard(ex)));
   } else {
     allExercises(S.type).forEach(ex => body.appendChild(buildExCard(ex)));
   }
@@ -1394,6 +1473,10 @@ function buildExCard(ex) {
   const lastVal = S.lastVals[ex.id];
   const lastText = lastVal ? fmtSetShort(ex, lastVal) : null;
 
+  const group = VARIANT_GROUP_OF[ex.id];
+  const varKey = group ? Object.keys(group.variants).find(k => group.variants[k] === ex.id) : null;
+  const nameHtml = group ? `${group.name} <span class="var-tag">${varKey}</span>` : ex.name;
+
   const card = document.createElement('div');
   card.className = 'excard' + (isOpen ? ' open' : '') + (isDone ? ' done' : '');
   card.id = 'ex-' + ex.id;
@@ -1401,7 +1484,7 @@ function buildExCard(ex) {
     <div class="excard-hdr" onclick="toggleEx('${ex.id}')">
       <div class="ex-dot">${sets.length > 0 ? '✓' : ''}</div>
       <div class="ex-info">
-        <div class="ex-name">${ex.name}</div>
+        <div class="ex-name">${nameHtml}</div>
         <div class="ex-meta">${buildExMeta(ex, lastVal)}</div>
       </div>
       ${sets.length > 0 ? `<span class="ex-sets-badge">${sets.length}×</span>` : ''}
@@ -1412,8 +1495,17 @@ function buildExCard(ex) {
   return card;
 }
 
+function buildVariantSelector(ex) {
+  const g = VARIANT_GROUP_OF[ex.id];
+  if (!g) return '';
+  return `<div class="var-seg">${Object.entries(g.variants).map(([key, id]) => {
+    const n = getSets(id).length;
+    return `<button class="var-btn${id === ex.id ? ' active' : ''}" onclick="selectVariant('${g.name}','${id}')">${key}${n ? ` <small>${n}×</small>` : ''}</button>`;
+  }).join('')}</div>`;
+}
+
 function buildExBody(ex, sets) {
-  let html = '';
+  let html = buildVariantSelector(ex);
 
   // Coach tip (AI suggestion sentence)
   const sug = S.suggestions?.[ex.id];
@@ -2205,6 +2297,7 @@ function startEditSession(localId) {
   S.suggestions = {};
   S.lastVals = {};
   S.curInputs = {};
+  initVariantSel();
 
   // Pre-fill inputs from the session's last set per exercise
   for (const ex of allExercises(session.type)) {
