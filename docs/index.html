@@ -1887,6 +1887,14 @@ async function saveSession() {
     orig.setFullYear(y, m - 1, d);
     S.session.date = orig.toISOString();
   }
+  // Captured before S.session is cleared, for the post-workout coach review
+  const reviewCtx = {
+    label: 'Post-session',
+    context_type: 'session',
+    session_data: `Client date/time: ${clientDateTimeStr()}\nStatus: POST-WORKOUT REVIEW — session just finished and saved ` +
+      `(it may also appear in the synced session list below; it is the same session, don't count it twice).\n\n` +
+      buildSessionSummaryText({ finished: true }),
+  };
   try {
     await dbSave(S.session);
     clearDraft();
@@ -1899,7 +1907,22 @@ async function saveSession() {
     S.type = null;
   } catch (e) {
     showToast('Save failed');
+    return;
   }
+  requestPostSessionReview(reviewCtx);
+}
+
+// Open the coach chat and ask for a review of the session that was just saved.
+// The prompt is sent as a normal user message so the review lands in chat history
+// and can be followed up on.
+async function requestPostSessionReview(ctx) {
+  if (!sbClient || !authUser) return;
+  if (!S.chatPanelOpen) toggleChatPanel();
+  await new Promise(r => setTimeout(r, 50));
+  await sendChatMessage(
+    'Just finished this session — give me a short review: what went well, any knee/rehab flags, and what to aim for next time.',
+    ctx,
+  );
 }
 
 // ── HISTORY ───────────────────────────────────────────────────────────────
@@ -2687,21 +2710,24 @@ function showProfile() {
 
 // ── UNIFIED COACH CHAT ────────────────────────────────────────────────────
 
-function buildSessionSummaryText() {
+function buildSessionSummaryText({ finished = false } = {}) {
   if (!S.session) return '';
   const allEx = allExercises(S.type);
+  const openEx = finished ? null : S.openEx;
   const lines = [
     `Session type: ${S.type}`,
     `Session date: ${new Date(S.session.date).toLocaleDateString('en-GB')}`,
   ];
-  if (S.openEx) {
-    const cur = findEx(S.openEx);
+  if (finished && S.session.durationMs) lines.push(`Duration: ${Math.round(S.session.durationMs / 60000)} min`);
+  if (openEx) {
+    const cur = findEx(openEx);
     if (cur) lines.push(`Currently on: ${cur.name}`);
   }
   lines.push('');
   allEx.forEach(ex => {
     const sets = getSets(ex.id);
-    const isCurrent = ex.id === S.openEx ? ' ← active now' : '';
+    if (finished && sets.length === 0) return; // skip unused variants/exercises in a finished session
+    const isCurrent = ex.id === openEx ? ' ← active now' : '';
     if (sets.length > 0) {
       const setsText = sets.map((s, i) => {
         const n = `set ${i + 1}`;
@@ -2758,7 +2784,7 @@ function getCurrentChatContext() {
     return {
       label: 'Post-session',
       context_type: 'session',
-      session_data: `Client date/time: ${dtStr}\nStatus: POST-WORKOUT REVIEW\n\n${buildSessionSummaryText()}`,
+      session_data: `Client date/time: ${dtStr}\nStatus: POST-WORKOUT REVIEW\n\n${buildSessionSummaryText({ finished: true })}`,
     };
   }
   // Home screen — include any already-completed sessions today from local store
@@ -2904,18 +2930,23 @@ async function saveChatMessageToSupabase(role, content, context_type) {
   }
 }
 
-async function sendChatMessage() {
+// msgOverride/ctxOverride: send a programmatic message (e.g. post-session review)
+// without touching the input box or deriving context from the current screen.
+async function sendChatMessage(msgOverride, ctxOverride) {
   const input   = document.getElementById('chat-panel-input');
   const sendBtn = document.getElementById('chat-panel-send');
-  const message = input?.value.trim();
+  const message = typeof msgOverride === 'string' ? msgOverride : input?.value.trim();
   if (!message || !sbClient || !authUser) return;
 
-  input.value = '';
-  input.style.height = '';
+  if (typeof msgOverride !== 'string' && input) {
+    input.value = '';
+    input.style.height = '';
+  }
   sendBtn.disabled = true;
 
-  const { label, context_type, session_data } = getCurrentChatContext();
+  const { label, context_type, session_data } = ctxOverride ?? getCurrentChatContext();
   updateChatContextLabel();
+  if (ctxOverride) { const ctxEl = document.getElementById('chat-panel-ctx'); if (ctxEl) ctxEl.textContent = label; }
 
   // Show user bubble immediately
   addChatMessage({ role: 'user', content: message, context_type });
@@ -2983,7 +3014,7 @@ async function sendChatMessage() {
     if (loadingBubble) { loadingBubble.textContent = `Error: ${e.message}`; loadingBubble.style.color = 'var(--danger)'; }
   } finally {
     sendBtn.disabled = false;
-    input?.focus();
+    if (typeof msgOverride !== 'string') input?.focus(); // don't pop the keyboard for auto messages
   }
 }
 
