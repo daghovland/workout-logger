@@ -347,7 +347,12 @@ class WorkoutViewModel(
         _session.value = SessionUiState.Idle
     }
 
-    fun saveSession(session: Session) {
+    /**
+     * Saves the session. Returns true when a post-session coach review was requested,
+     * so the caller can navigate to the chat screen to show it.
+     */
+    fun saveSession(session: Session): Boolean {
+        val review = _home.value.isSignedIn && session.type != SessionType.NOEQUIP.name.lowercase()
         viewModelScope.launch {
             workoutRepo.saveSession(session)
             _session.value = SessionUiState.Idle
@@ -358,6 +363,39 @@ class WorkoutViewModel(
                 if (ok) workoutRepo.markSynced(session.id)
             }
         }
+        if (review) requestPostSessionReview(session)
+        return review
+    }
+
+    /**
+     * Ask the coach to review the session that was just saved. Sent as a normal user message
+     * so the review lands in chat history and can be followed up (mirrors the PWA).
+     */
+    private fun requestPostSessionReview(session: Session) {
+        val now = java.time.ZonedDateTime.now()
+        val lines = mutableListOf(
+            "Client date/time: ${now.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy, HH:mm", java.util.Locale.ENGLISH))} (local)",
+            "Status: POST-WORKOUT REVIEW — session just finished and saved (it may also appear in the " +
+                "synced session list below; it is the same session, don't count it twice).",
+            "",
+            "Session type: ${session.type}",
+        )
+        if (session.durationMs > 0) lines += "Duration: ${session.durationMs / 60_000} min"
+        lines += ""
+        for ((exId, data) in session.exercises) {
+            if (data.sets.isEmpty()) continue
+            val ex = ExerciseDefinitions.findById(exId)
+            val setsText = data.sets.mapIndexed { i, set ->
+                "set ${i + 1}: ${ex?.let { formatSetShort(it, set) } ?: "${set.weight ?: ""} × ${set.reps}"}"
+            }.joinToString("; ")
+            lines += "${ex?.name ?: exId}: $setsText"
+        }
+        session.notes?.takeIf { it.isNotBlank() }?.let { lines += "\nSession notes: $it" }
+        sendChatMessage(
+            "Just finished this session — give me a short review: what went well, any knee/rehab flags, and what to aim for next time.",
+            contextType = "session",
+            sessionData = lines.joinToString("\n"),
+        )
     }
 
     fun deleteSession(id: Long) {
@@ -407,7 +445,8 @@ class WorkoutViewModel(
         if (history.isNotEmpty()) _chatMessages.value = history
     }
 
-    fun sendChatMessage(message: String) {
+    /** contextType/sessionData override the context derived from the active session. */
+    fun sendChatMessage(message: String, contextType: String? = null, sessionData: String? = null) {
         if (!_home.value.isSignedIn || message.isBlank()) return
         val userMsg = ChatMessage(role = "user", content = message)
         val historyBeforeSend = _chatMessages.value
@@ -415,26 +454,27 @@ class WorkoutViewModel(
         _chatLoading.value = true
 
         val activeSession = _session.value as? SessionUiState.Active
-        val sessionData = activeSession?.let { s ->
+        val ctxType = contextType ?: if (activeSession != null) "session" else "general"
+        val ctxData = sessionData ?: activeSession?.let { s ->
             val elapsed = (System.currentTimeMillis() - s.startTimeMs) / 60_000
             val setsLogged = s.session.exercises.values.sumOf { it.sets.size }
             "Mid-workout (${s.type.name.lowercase()}, ${elapsed}min elapsed, $setsLogged sets logged)"
         }
 
         viewModelScope.launch {
-            supabaseRepo.saveChatMessage("user", message, if (activeSession != null) "session" else "general")
+            supabaseRepo.saveChatMessage("user", message, ctxType)
 
             val response = supabaseRepo.sendChat(
                 message     = message,
                 history     = historyBeforeSend,
-                contextType = if (activeSession != null) "session" else "general",
-                sessionData = sessionData,
+                contextType = ctxType,
+                sessionData = ctxData,
             )
             _chatLoading.value = false
             if (response?.reply != null) {
                 _chatMessages.value = _chatMessages.value +
                     ChatMessage(role = "assistant", content = response.reply)
-                supabaseRepo.saveChatMessage("assistant", response.reply, "general")
+                supabaseRepo.saveChatMessage("assistant", response.reply, ctxType)
                 if (response.updatedCoachNotes != null) {
                     supabaseRepo.saveCoachNotes(response.updatedCoachNotes)
                     val updated = _home.value.profile?.copy(coachNotes = response.updatedCoachNotes)

@@ -45,7 +45,7 @@ import no.daglifts.workout.viewmodel.formatSetShort
 @Composable
 fun SummaryScreen(
     vm: WorkoutViewModel,
-    onSaved: () -> Unit,
+    onSaved: (openChat: Boolean) -> Unit,
     onDiscard: () -> Unit,
 ) {
     val sessionState by vm.session.collectAsState()
@@ -119,8 +119,8 @@ fun SummaryScreen(
             // Actions
             Button(
                 onClick = {
-                    vm.saveSession(s.session)
-                    onSaved()
+                    val openChat = vm.saveSession(s.session)
+                    onSaved(openChat)
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),

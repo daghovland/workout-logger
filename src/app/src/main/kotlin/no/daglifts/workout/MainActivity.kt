@@ -160,7 +160,11 @@ fun WorkoutApp(vm: WorkoutViewModel, bodyVm: BodyViewModel) {
                 composable("summary") {
                     SummaryScreen(
                         vm       = vm,
-                        onSaved  = { navController.popBackStack("home", inclusive = false) },
+                        onSaved  = { openChat ->
+                            navController.popBackStack("home", inclusive = false)
+                            // Post-session coach review was requested — show it in the chat
+                            if (openChat) navController.navigate("chat")
+                        },
                         onDiscard = {
                             vm.cancelSession()
                             navController.popBackStack("home", inclusive = false)
