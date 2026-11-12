@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { CORS_HEADERS, jsonResp, buildPrompt } from '../_shared/coach-context.ts'
+import { CORS_HEADERS, jsonResp, buildPrompt, responseText } from '../_shared/coach-context.ts'
 
 const TASK_PROMPT = `Given the athlete's training history, daily logs, and today's session, return a JSON object with a session brief and per-exercise suggestions.
 
@@ -195,6 +195,7 @@ Generate the session brief and per-exercise suggestions for all listed exercises
       },
       body: JSON.stringify({
         model: 'claude-sonnet-5-5',
+        thinking: { type: 'between_tools' }, // short JSON replies, no tools — thinking off
         max_tokens: 1200,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
@@ -207,7 +208,7 @@ Generate the session brief and per-exercise suggestions for all listed exercises
     }
 
     const aiData = await aiResp.json()
-    const rawText: string = aiData.content?.[0]?.text?.trim() ?? '{}'
+    const rawText: string = responseText(aiData) || '{}'
     const stripped = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
     const cleaned = stripped.replace(/("(?:[^"\\]|\\.)*")/g, (m) =>
       m.replace(/\n/g, '\\n').replace(/\r/g, '\\r')

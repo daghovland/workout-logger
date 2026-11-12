@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { CORS_HEADERS, jsonResp, COACH_CONTEXT, buildPrompt } from '../_shared/coach-context.ts'
+import { CORS_HEADERS, jsonResp, COACH_CONTEXT, buildPrompt, responseText } from '../_shared/coach-context.ts'
 
 const TASK_PROMPT = `You are the athlete's personal coach in a freeform chat.
 
@@ -154,6 +154,7 @@ Deno.serve(async (req: Request) => {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-5-5',
+        thinking: { type: 'between_tools' }, // short JSON replies, no tools — thinking off
         max_tokens: 600,
         system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
         messages,
@@ -176,7 +177,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const aiData = await aiResp.json()
-    const rawText: string = aiData.content?.[0]?.text?.trim() ?? '{}'
+    const rawText: string = responseText(aiData) || '{}'
 
     // Strip markdown code fences the model sometimes wraps around JSON
     const stripped = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
@@ -199,7 +200,7 @@ Deno.serve(async (req: Request) => {
     if (!result || typeof result !== 'object') result = { reply: stripped }
     if (typeof result.reply !== 'string' || !result.reply.trim()) {
       // Model returned JSON without a usable "reply" — fall back to the raw text
-      result.reply = stripped || 'Sorry, I could not generate a reply — please try again.'
+      result.reply = stripped && stripped !== '{}' ? stripped : 'Sorry, I could not generate a reply — please try again.'
     }
 
     // Persist updated coach notes if the AI proposed changes

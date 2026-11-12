@@ -1,3 +1,4 @@
+import { responseText } from '../_shared/coach-context.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const BASE_SYSTEM_PROMPT = `You are a personal strength coach.
@@ -128,6 +129,7 @@ Suggest the next working set.`
       },
       body: JSON.stringify({
         model: 'claude-sonnet-5-5',
+        thinking: { type: 'between_tools' }, // short JSON replies, no tools — thinking off
         max_tokens: 200,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
@@ -140,7 +142,7 @@ Suggest the next working set.`
     }
 
     const aiData = await aiResp.json()
-    const rawText: string = aiData.content?.[0]?.text ?? '{}'
+    const rawText: string = responseText(aiData) || '{}'
 
     let suggestion: { weight: number | null; reps: number; note: string }
     try {

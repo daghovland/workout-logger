@@ -55,3 +55,15 @@ export function buildPrompt(taskPrompt: string, aiContext?: string | null): stri
   const base = `${COACH_CONTEXT}\n\n${taskPrompt}`
   return aiContext ? `${base}\n\nAthlete-specific context: ${aiContext}` : base
 }
+
+// Concatenate the text blocks of a Messages API response. Never assume
+// content[0] is text — models with thinking on return a thinking block first.
+export function responseText(aiData: { content?: { type: string; text?: string }[]; stop_reason?: string }): string {
+  const text = (aiData.content ?? [])
+    .filter(b => b.type === 'text' && typeof b.text === 'string')
+    .map(b => b.text)
+    .join('')
+    .trim()
+  if (!text) console.warn('Empty model text; stop_reason:', aiData.stop_reason, 'blocks:', (aiData.content ?? []).map(b => b.type))
+  return text
+}
