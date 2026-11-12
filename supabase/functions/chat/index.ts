@@ -132,7 +132,11 @@ Deno.serve(async (req: Request) => {
     const fullTaskPrompt = `${TASK_PROMPT}${coachNotesSection}\n\nAthlete data:\n${contextLines}`
     const systemPrompt = buildPrompt(fullTaskPrompt, profile?.ai_context)
 
-    const history = (chat_history ?? []).slice(-20)
+    // Drop malformed turns — Anthropic rejects messages with missing/empty content
+    const history = (Array.isArray(chat_history) ? chat_history : [])
+      .filter(m => (m?.role === 'user' || m?.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+      .slice(-20)
+      .map(m => ({ role: m.role, content: m.content }))
     const messages = [
       ...history,
       { role: 'user', content: message },
@@ -190,6 +194,12 @@ Deno.serve(async (req: Request) => {
       // Last resort: pull out the reply field with a regex
       const m = stripped.match(/"reply"\s*:\s*"([\s\S]*?)"(?:\s*[,}])/)
       result = { reply: m ? m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"') : stripped }
+    }
+
+    if (!result || typeof result !== 'object') result = { reply: stripped }
+    if (typeof result.reply !== 'string' || !result.reply.trim()) {
+      // Model returned JSON without a usable "reply" — fall back to the raw text
+      result.reply = stripped || 'Sorry, I could not generate a reply — please try again.'
     }
 
     // Persist updated coach notes if the AI proposed changes

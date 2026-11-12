@@ -2821,7 +2821,10 @@ function saveChatMessagesLocal() {
 }
 
 function loadChatMessagesLocal() {
-  try { return JSON.parse(localStorage.getItem(chatLocalKey()) || '[]'); } catch { return []; }
+  try {
+    const msgs = JSON.parse(localStorage.getItem(chatLocalKey()) || '[]');
+    return Array.isArray(msgs) ? msgs.filter(m => typeof m?.content === 'string' && m.content.trim()) : [];
+  } catch { return []; }
 }
 
 async function loadChatHistory() {
@@ -2966,7 +2969,12 @@ async function sendChatMessage(msgOverride, ctxOverride) {
     if (!token) throw new Error('Not signed in');
 
     // Last 20 saved messages as history context (exclude the one we just sent)
-    const history = S.chatMessages.slice(-21, -1).map(m => ({ role: m.role, content: m.content }));
+    // Skip malformed entries (e.g. an assistant reply that came back empty) — the API
+    // rejects messages without non-empty string content.
+    const history = S.chatMessages.slice(0, -1)
+      .filter(m => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+      .slice(-20)
+      .map(m => ({ role: m.role, content: m.content }));
 
     const resp = await fetch(`${SUPABASE_URL}/functions/v1/chat`, {
       method: 'POST',
@@ -2991,6 +2999,7 @@ async function sendChatMessage(msgOverride, ctxOverride) {
       return;
     }
     if (!resp.ok || data.error) throw new Error(data.error ?? resp.status);
+    if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('Empty reply from coach');
 
     // Show and persist reply
     if (loadingBubble) {
