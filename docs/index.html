@@ -2823,7 +2823,9 @@ function saveChatMessagesLocal() {
 function loadChatMessagesLocal() {
   try {
     const msgs = JSON.parse(localStorage.getItem(chatLocalKey()) || '[]');
-    return Array.isArray(msgs) ? msgs.filter(m => typeof m?.content === 'string' && m.content.trim()) : [];
+    return Array.isArray(msgs)
+      ? msgs.filter(m => typeof m?.content === 'string' && m.content.trim() && !(m.role === 'assistant' && m.content.trim() === '{}'))
+      : [];
   } catch { return []; }
 }
 
@@ -2846,7 +2848,15 @@ async function loadChatHistory() {
       .limit(100);
     if (error) { console.error('loadChatHistory error:', error); return; }
     // Most-recent-first from Supabase → flip to chronological
-    const serverMsgs = (data ?? []).reverse();
+    let serverMsgs = (data ?? []).reverse();
+    // Remove broken '{}' coach replies (from an old edge-function bug) from Supabase
+    const isBrokenReply = m => m.role === 'assistant' && (m.content ?? '').trim() === '{}';
+    const brokenIds = serverMsgs.filter(isBrokenReply).map(m => m.id);
+    if (brokenIds.length > 0) {
+      const { error: delErr } = await sbClient.from('chat_messages').delete().in('id', brokenIds);
+      if (delErr) console.warn('delete broken chat replies:', delErr);
+      else serverMsgs = serverMsgs.filter(m => !isBrokenReply(m));
+    }
     // Preserve any messages sent in this session that haven't synced yet (no id)
     const lastServerTime = serverMsgs.at(-1)?.created_at ?? '';
     const unsyncedLocal = S.chatMessages.filter(m => !m.id && m.created_at > lastServerTime);
