@@ -7,6 +7,10 @@ Factor in daily logs only when they signal a real problem (sleep under 6h, illne
 
 Weight targets: for each weighted exercise, suggest the load the athlete can realistically lift for the target reps with about 1–2 reps in reserve — a small step beyond the best recent working set, not a repeat of the last session by default. Base it on the BEST recent working sets (and trends across several sessions), not just the most recent one. Only repeat or lower the weight when there is a concrete reason (reps fell, a grind note, pain, bad sleep), and name that reason in the note. For exercises with no history, estimate from related lifts in the history instead of defaulting to a beginner weight.
 
+Units matter: "kg" means the total load (barbell or machine stack); "kg/arm" means the weight of EACH dumbbell. Barbell (BB) and dumbbell (DB) versions of a lift are separate exercises with separate histories — never copy a number from one to the other. When estimating one from the other, convert: a BB load is roughly 1.6–1.8× the per-hand DB weight, and a per-hand DB weight is roughly 55–60% of half the BB load.
+
+Return an entry for EVERY listed exercise id, exactly as written.
+
 Session brief: 2–3 sentences, plain text, no markdown, max 80 words. Include today's priority lifts, one technical focus, and any recovery consideration from recent logs.
 
 Respond ONLY with valid JSON and nothing else — no markdown fences, no explanation:
@@ -46,10 +50,10 @@ Deno.serve(async (req: Request) => {
     if (!type || !exercises?.length) return jsonResp({ error: 'Missing type or exercises' }, 400)
 
     // Fetch all context in parallel:
-    // - recent sessions: all types, last 2 weeks, with sets (cross-type context)
+    // - recent sessions: all types, last 8 weeks, with sets (cross-type context)
     // - prev type session: the most recent session of this type regardless of date (fallback)
     // - supabase daily logs: last 30 days
-    const twoWeeksAgo = daysAgo(14)
+    const historyStart = daysAgo(56)
     const thirtyDaysAgo = daysAgo(30)
     const [profileRes, allSessionsRes, recentSessionsRes, prevTypeSessionRes, dailyLogsRes] = await Promise.all([
       supabase
@@ -65,7 +69,7 @@ Deno.serve(async (req: Request) => {
       supabase
         .from('sessions')
         .select('date, type, notes, sets(exercise_id, weight, weight_l, weight_r, reps, notes)')
-        .gte('date', twoWeeksAgo)
+        .gte('date', historyStart)
         .order('date', { ascending: false }),
       supabase
         .from('sessions')
@@ -120,7 +124,7 @@ Deno.serve(async (req: Request) => {
 
     const dailyLogText = [sbLogText, richLogText].filter(Boolean).join('\n')
 
-    // Merge recent sessions (last 2 weeks, all types) with previous session of this type
+    // Merge recent sessions (last 8 weeks, all types) with previous session of this type
     // Deduplicate by date string to avoid counting the same session twice
     const recentSessions = recentSessionsRes.data ?? []
     const prevTypeSessions = prevTypeSessionRes.data ?? []
@@ -153,7 +157,7 @@ Deno.serve(async (req: Request) => {
           if (isBW) return `${s.reps}`
           return w ? `${w}×${s.reps}` : `${s.reps}`
         }).join(', ')
-        const unit = isBW ? (exUnit === 'sec' ? '' : ' reps') : ' kg'
+        const unit = isBW ? (exUnit === 'sec' ? '' : ' reps') : ` ${exUnit}`
         const setNote = sets.some(s => s.notes) ? ` (${sets.map(s => s.notes).filter(Boolean).join('; ')})` : ''
         exerciseHistory[exId].push(`${d}[${sessionType}]: ${setsStr}${unit}${setNote}${sessNote}`)
       }
@@ -161,7 +165,8 @@ Deno.serve(async (req: Request) => {
 
     const exerciseLines = exercises
       .map(ex => {
-        const unitLabel = ex.unit === 'sec' ? ' [timed, reps=seconds]' : ex.unit === 'BW' ? ' [bodyweight]' : ` [${ex.unit}]`
+        const unitLabel = ex.unit === 'sec' ? ' [timed, reps=seconds]' : ex.unit === 'BW' ? ' [bodyweight]'
+          : ex.unit === 'kg/arm' ? ' [kg/arm = per dumbbell]' : ` [${ex.unit}]`
         const hist = exerciseHistory[ex.id]
         return hist?.length
           ? `${ex.id} (${ex.name}${unitLabel}): ${hist.join(' | ')}`
@@ -178,7 +183,7 @@ Deno.serve(async (req: Request) => {
 Recent sessions (last 15, all types):
 ${sessionListText}
 ${dailyLogText ? `\nDaily logs (last 30 days):\n${dailyLogText}\n` : ''}
-${bodyCompText ? `${bodyCompText}\n\n` : ''}Exercise history (all sets per session shown as "weight×reps, weight×reps"; last 2 weeks all types + previous ${type} session; date[type] — use cross-type data for sibling movements):
+${bodyCompText ? `${bodyCompText}\n\n` : ''}Exercise history (all sets per session shown as "weight×reps, weight×reps"; last 8 weeks all types + previous ${type} session; date[type] — use cross-type data for sibling movements):
 ${exerciseLines}
 
 Generate the session brief and per-exercise suggestions for all listed exercises.`
@@ -196,7 +201,7 @@ Generate the session brief and per-exercise suggestions for all listed exercises
       body: JSON.stringify({
         model: 'claude-sonnet-5-5',
         thinking: { type: 'between_tools' }, // short JSON replies, no tools — thinking off
-        max_tokens: 1200,
+        max_tokens: 4000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
       }),
