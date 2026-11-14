@@ -906,6 +906,7 @@ const EXERCISES = {
     main: [
       { id: 'deadlift',    name: 'Deadlift BB', unit: 'kg',     step: 2.5 },
       { id: 'db_deadlift', name: 'Deadlift DB', unit: 'kg/arm', step: 2   },
+      { id: 'back_ext',    name: 'Back Extensions', unit: 'kg',   step: 2.5 }, // blank weight = bodyweight
       { id: 'ohp',      name: 'OHP BB',   unit: 'kg',     step: 2.5 },
       { id: 'db_ohp',   name: 'OHP DB',   unit: 'kg/arm', step: 2   },
       { id: 'pullups',  name: 'Pull-ups', unit: 'BW',     step: null },
@@ -940,10 +941,11 @@ const EXERCISES = {
   ],
 };
 
-// Barbell/dumbbell pairs shown as ONE card with a BB/DB selector.
+// Equipment variants shown as ONE card with a selector (BB/DB, or leg-extension machine).
 // Each variant keeps its own exercise id (and therefore its own history),
-// since per-hand DB loads aren't comparable with barbell totals.
+// since per-hand DB loads aren't comparable with barbell totals (nor machine stacks with each other).
 const VARIANT_GROUPS = [
+  { name: 'Leg Ext',  variants: { 'Hammer Strength': 'leg_ext_hs', 'Technogym': 'leg_ext_tg' } },
   { name: 'Step-ups', variants: { BB: 'step_ups', DB: 'step_ups_db' } },
   { name: 'Deadlift', variants: { BB: 'deadlift', DB: 'db_deadlift' } },
   { name: 'OHP',      variants: { BB: 'ohp',      DB: 'db_ohp' } },
@@ -1395,7 +1397,7 @@ function resumeNoequipSession(existing) {
   showScreen('session');
   startTimer();
   // Invalidate today's noequip coach cache so the brief refreshes
-  localStorage.removeItem(`coach-cache-noequip-${new Date().toISOString().slice(0, 10)}`);
+  localStorage.removeItem(coachCacheKey('noequip'));
   loadCoachForSession('noequip');
 }
 
@@ -3079,7 +3081,7 @@ function buildExMeta(ex, lastVal) {
 function coachCacheKey(type) {
   const d = new Date();
   const date = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  return `coach-cache-${type}-${date}`;
+  return `coach-cache-v2-${type}-${date}`; // bump v2→v3 to discard cached suggestions after coach changes
 }
 
 function getCachedCoach(type) {

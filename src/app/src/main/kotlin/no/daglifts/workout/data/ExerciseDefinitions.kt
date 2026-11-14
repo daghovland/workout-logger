@@ -53,6 +53,7 @@ object ExerciseDefinitions {
     val GYM_MAIN = listOf(
         Exercise("deadlift",    "Deadlift BB", "kg",     2.5),
         Exercise("db_deadlift", "Deadlift DB", "kg/arm", 2.0),
+        Exercise("back_ext",    "Back Extensions", "kg", 2.5), // blank weight = bodyweight
         Exercise("ohp",         "OHP BB",      "kg",     2.5, checklist = OHP_WARMUP),
         Exercise("db_ohp",      "OHP DB",      "kg/arm", 2.0, checklist = OHP_WARMUP),
         Exercise("pullups",     "Pull-ups",    "BW",     null),
@@ -65,10 +66,12 @@ object ExerciseDefinitions {
     )
 
     /**
-     * Barbell/dumbbell pairs shown as ONE card with a BB/DB selector (mirrors VARIANT_GROUPS
-     * in the PWA). Each variant keeps its own exercise id and therefore its own history.
+     * Equipment variants shown as ONE card with a selector — BB/DB pairs and the two leg-extension
+     * machines (mirrors VARIANT_GROUPS in the PWA). Each variant keeps its own exercise id and
+     * therefore its own history.
      */
     val VARIANT_GROUPS = listOf(
+        VariantGroup("Leg Ext",  linkedMapOf("Hammer Strength" to "leg_ext_hs", "Technogym" to "leg_ext_tg")),
         VariantGroup("Step-ups", linkedMapOf("BB" to "step_ups", "DB" to "step_ups_db")),
         VariantGroup("Deadlift", linkedMapOf("BB" to "deadlift", "DB" to "db_deadlift")),
         VariantGroup("OHP",      linkedMapOf("BB" to "ohp",      "DB" to "db_ohp")),
